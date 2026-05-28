@@ -1725,6 +1725,14 @@ function showAdd() {
       <p class="form-subtitle">Rellena todos los campos. Puedes asignar la pregunta a varias oposiciones si el temario es común.</p>
       <div class="add-form">
 
+        <div class="form-group">
+          <label class="form-label">📌 Oposición</label>
+          <div id="add-op-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+            ${opChecksHtml('add', [])}
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:5px">Marca la oposición a la que pertenece esta pregunta.</div>
+        </div>
+
         <div class="form-group" style="margin-top:1.25rem">
           <label class="form-label">📚 Asignatura</label>
           <select class="form-select" id="add-subject" onchange="onAddSubjectChange()">
@@ -1901,6 +1909,10 @@ function onUnitChangeAdd() {
   }
 }
 function submitAdd() {
+  // ── Oposiciones ──
+  const opChecks = Array.from(document.querySelectorAll('#add-op-checks input:checked')).map(c => c.value);
+  if (opChecks.length === 0) { alert('Selecciona al menos una oposición.'); return; }
+
   // ── Asignatura ──
   const subjectSel = document.getElementById('add-subject');
   let subjectId = subjectSel ? subjectSel.value : '';
@@ -1940,8 +1952,7 @@ function submitAdd() {
   if (opts.some(o=>!o)) { alert('Rellena las cuatro opciones de respuesta.'); return; }
   if (!exp)             { alert('Escribe la explicación de la respuesta correcta.'); return; }
 
-  const subjOps = (subjects[subjectId] && subjects[subjectId].oposiciones) ? subjects[subjectId].oposiciones : [];
-  const newQ = { id: 'custom_' + Date.now(), subject: subjectId, unit, unitName, q, opts, correct, exp, oposiciones: subjOps, custom: true };
+  const newQ = { id: 'custom_' + Date.now(), subject: subjectId, unit, unitName, q, opts, correct, exp, oposiciones: opChecks, custom: true };
   customQuestions.push(newQ);
   allQuestions = BASE_QUESTIONS.slice().concat(customQuestions.filter(cq => !cq._deleted));
   saveData(); saveQuestionToJSON(newQ); buildSidebar();
