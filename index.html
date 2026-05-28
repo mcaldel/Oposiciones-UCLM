@@ -1949,29 +1949,19 @@ function submitAdd() {
   allQuestions = BASE_QUESTIONS.slice().concat(customQuestions.filter(cq => !cq._deleted));
   saveData(); saveQuestionToJSON(newQ); buildSidebar();
 
-  window._lastAddedQuestion = newQ;
+  // Compartir automáticamente con todos los usuarios
+  shareQuestionToFirestore(newQ);
+
   const toast = document.getElementById('add-toast');
   if (toast) {
-    toast.innerHTML = '✓ Pregunta guardada localmente. <button onclick="shareLastQuestion(this)" style="margin-left:8px;padding:4px 12px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer;font-weight:600">🌐 Compartir con todos</button>';
+    toast.innerHTML = '✓ Pregunta guardada y compartida con todos';
     toast.style.display = 'block';
     setTimeout(() => {
       toast.style.display = 'none';
       toast.innerHTML = '✓ Pregunta añadida correctamente';
       ['add-q','add-exp'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
       [0,1,2,3].forEach(i => { const el=document.getElementById('add-opt'+i); if(el) el.value=''; });
-    }, 6000);
-  }
-}
-
-async function shareLastQuestion(btn) {
-  if (!window._lastAddedQuestion) return;
-  if (btn) { btn.disabled = true; btn.textContent = 'Compartiendo...'; }
-  await shareQuestionToFirestore(window._lastAddedQuestion);
-  window._lastAddedQuestion = null;
-  const toast = document.getElementById('add-toast');
-  if (toast) {
-    toast.style.display = 'none';
-    toast.innerHTML = '✓ Pregunta añadida correctamente';
+    }, 3000);
   }
 }
 
