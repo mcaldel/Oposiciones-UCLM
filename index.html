@@ -16,7 +16,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAza4dzi5lj17OcDIaLthBDX5jGXZtm6GM",
@@ -34,7 +34,7 @@
   // Hacemos auth y db accesibles desde el resto del código
   window._fbAuth = auth;
   window._fbDb = db;
-  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp };
+  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp };
 
   // Escuchar cambios de sesión Firebase
   onAuthStateChanged(auth, (user) => {
@@ -2172,8 +2172,43 @@ function saveEdit(id) {
   const overrideIds = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
   allQuestions = BASE_QUESTIONS.filter(q => !overrideIds.has(q.id)).concat(customQuestions.filter(q => !q._deleted));
   saveData(); buildSidebar();
+
+  // Actualizar también en Firestore para que el resto de usuarios vean los cambios
+  updateQuestionInFirestore(updated);
+
   const toast = document.getElementById('edit-toast');
   if (toast) { toast.style.display = 'block'; setTimeout(() => { toast.style.display = 'none'; editingId = null; showAdmin(); }, 1500); }
+}
+
+async function updateQuestionInFirestore(updatedQ) {
+  if (!window._fbDb || !window._fbUser || !currentUser) return;
+  try {
+    const { collection, setDoc, doc, serverTimestamp } = window._fbFns;
+    // Buscar el documento en Firestore que corresponde a esta pregunta
+    const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(collection(window._fbDb, 'sharedQuestions'));
+    let firestoreDocId = null;
+    snap.forEach((document) => {
+      const data = document.data();
+      // Buscar por id original de la pregunta (puede tener prefijo shared_ o ser custom_)
+      const qid = (data.question || {}).id;
+      if (qid === updatedQ.id || 'shared_' + document.id === updatedQ.id) {
+        firestoreDocId = document.id;
+      }
+    });
+    if (firestoreDocId) {
+      const subjectData = subjects[updatedQ.subject] || null;
+      await setDoc(doc(window._fbDb, 'sharedQuestions', firestoreDocId), {
+        question: updatedQ,
+        subject: subjectData,
+        authorName: currentUser.name,
+        authorId: currentUser.id,
+        createdAt: serverTimestamp()
+      });
+    }
+  } catch(e) {
+    console.warn('No se pudo actualizar en Firestore:', e.message);
+  }
 }
 
 async function deleteQuestion(id) {
