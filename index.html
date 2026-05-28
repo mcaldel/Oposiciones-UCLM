@@ -1030,8 +1030,18 @@ function getSubjectsForOposicion(opId) {
   return Object.values(subjects).filter(s => (Array.isArray(s.oposiciones) ? s.oposiciones : [s.oposicion || 'auxiliar']).includes(opId));
 }
 function getQuestionsForOposicion(opId) {
-  const sids = new Set(getSubjectsForOposicion(opId).map(s => s.id));
-  return allQuestions.filter(q => sids.has(q.subject));
+  if (opId === 'all') return allQuestions;
+  return allQuestions.filter(q => {
+    // Si la pregunta tiene oposiciones propias, usarlas
+    if (q.oposiciones && q.oposiciones.length > 0) {
+      return q.oposiciones.includes(opId);
+    }
+    // Si no, usar las de la asignatura (retrocompatibilidad)
+    const s = subjects[q.subject];
+    if (!s) return false;
+    const ops = Array.isArray(s.oposiciones) ? s.oposiciones : [s.oposicion || 'auxiliar'];
+    return ops.includes(opId);
+  });
 }
 function getActiveQuestions() {
   let qs = [...allQuestions];
@@ -1930,7 +1940,8 @@ function submitAdd() {
   if (opts.some(o=>!o)) { alert('Rellena las cuatro opciones de respuesta.'); return; }
   if (!exp)             { alert('Escribe la explicación de la respuesta correcta.'); return; }
 
-  const newQ = { id: 'custom_' + Date.now(), subject: subjectId, unit, unitName, q, opts, correct, exp, custom: true };
+  const subjOps = (subjects[subjectId] && subjects[subjectId].oposiciones) ? subjects[subjectId].oposiciones : [];
+  const newQ = { id: 'custom_' + Date.now(), subject: subjectId, unit, unitName, q, opts, correct, exp, oposiciones: subjOps, custom: true };
   customQuestions.push(newQ);
   allQuestions = BASE_QUESTIONS.slice().concat(customQuestions.filter(cq => !cq._deleted));
   saveData(); saveQuestionToJSON(newQ); buildSidebar();
@@ -2029,10 +2040,12 @@ function renderEditPanel(id) {
     .map(u => `<option value="${u.unit}" data-name="${escHtml(u.name)}" ${q.unit===u.unit?'selected':''}>${u.name}</option>`).join('')
     + `<option value="__new__">➕ Nuevo tema / artículo…</option>`;
 
-  // Oposiciones actuales de la asignatura
-  const subjectOps = (subjects[q.subject] || {}).oposiciones || [];
+  // Oposiciones de la PREGUNTA individual (no de la asignatura)
+  const questionOps = q.oposiciones && q.oposiciones.length > 0
+    ? q.oposiciones
+    : (subjects[q.subject] || {}).oposiciones || [];
   const opChecksHtml = Object.values(oposiciones).map(op => {
-    const checked = subjectOps.includes(op.id) ? 'checked' : '';
+    const checked = questionOps.includes(op.id) ? 'checked' : '';
     return `<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px">
       <input type="checkbox" name="edit_op" value="${op.id}" ${checked} style="width:15px;height:15px;accent-color:var(--accent)">
       <span>${op.icon} ${op.name}</span>
@@ -2047,7 +2060,7 @@ function renderEditPanel(id) {
       <div class="form-group">
         <label class="form-label">📌 Oposiciones donde aparece</label>
         <div id="edit-op-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${opChecksHtml}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">Cambia aquí en qué oposiciones se incluye esta asignatura.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Cambia aquí en qué oposiciones aparece <strong>esta pregunta</strong> (no afecta al resto).</div>
       </div>
 
       <div class="form-row" style="margin-top:1rem">
@@ -2146,12 +2159,10 @@ function saveEdit(id) {
   const newExp  = (document.getElementById('edit-exp').value || '').trim();
   if (!newQ || newOpts.some(o => !o) || !newExp) { alert('Por favor completa todos los campos.'); return; }
 
-  // ── Actualizar oposiciones de la asignatura ──
-  // Las oposiciones de la asignatura no se modifican al editar una pregunta individual.
-
+  // ── Oposiciones: se guardan en la pregunta individual ──
   const baseIdx   = BASE_QUESTIONS.findIndex(q => q.id === id);
   const customIdx = customQuestions.findIndex(q => q.id === id);
-  const updated   = { id, subject: newSubject, unit: newUnit, unitName: newUnitName, q: newQ, opts: newOpts, correct: newCorrect, exp: newExp, custom: baseIdx === -1 };
+  const updated   = { id, subject: newSubject, unit: newUnit, unitName: newUnitName, q: newQ, opts: newOpts, correct: newCorrect, exp: newExp, oposiciones: editOpChecks, custom: baseIdx === -1 };
   if (baseIdx !== -1) {
     if (customIdx !== -1) customQuestions[customIdx] = { ...updated, override: true };
     else customQuestions.push({ ...updated, override: true });
