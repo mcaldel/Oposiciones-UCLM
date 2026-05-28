@@ -302,7 +302,7 @@
   .bnav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; background: transparent; border: none; color: var(--muted); font-family: 'DM Sans', -apple-system, 'Helvetica Neue', system-ui, sans-serif; font-size: 10px; font-weight: 500; padding: 6px 10px; border-radius: 10px; cursor: pointer; transition: color 0.15s; min-width: 54px; }
   .bnav-btn .bnav-icon { font-size: 19px; line-height: 1; }
   .bnav-btn.active { color: var(--accent-light); }
-  .bnav-btn.save-btn { color: #5dcaa5; }
+  .bnav-btn.save-btn { display: none !important; }
   .bnav-btn:active { opacity: 0.7; }
 
   .sidebar-overlay { display: none; position: fixed; inset: 0; z-index: 150; background: rgba(0,0,0,0.55); }
@@ -1715,14 +1715,6 @@ function showAdd() {
       <p class="form-subtitle">Rellena todos los campos. Puedes asignar la pregunta a varias oposiciones si el temario es común.</p>
       <div class="add-form">
 
-        <div class="form-group">
-          <label class="form-label">📌 Oposiciones donde aparece esta pregunta</label>
-          <div id="add-op-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
-            ${opChecksHtml('add', [])}
-          </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:5px">Marca todas las oposiciones en las que se incluye este temario.</div>
-        </div>
-
         <div class="form-group" style="margin-top:1.25rem">
           <label class="form-label">📚 Asignatura</label>
           <select class="form-select" id="add-subject" onchange="onAddSubjectChange()">
@@ -1899,10 +1891,6 @@ function onUnitChangeAdd() {
   }
 }
 function submitAdd() {
-  // ── Oposiciones ──
-  const opChecks = Array.from(document.querySelectorAll('#add-op-checks input:checked')).map(c => c.value);
-  if (opChecks.length === 0) { alert('Selecciona al menos una oposición.'); return; }
-
   // ── Asignatura ──
   const subjectSel = document.getElementById('add-subject');
   let subjectId = subjectSel ? subjectSel.value : '';
@@ -1913,10 +1901,10 @@ function submitAdd() {
     if (!subjectName) { alert('Escribe el nombre de la nueva asignatura.'); return; }
     const color = (document.getElementById('add-subject-color').value || '#a7a9be');
     subjectId = 'subj_' + Date.now();
-    subjects[subjectId] = { id: subjectId, name: subjectName, color, oposiciones: opChecks };
+    subjects[subjectId] = { id: subjectId, name: subjectName, color, oposiciones: [] };
   } else {
-    // Actualizar oposiciones de la asignatura existente si cambiaron
-    if (subjects[subjectId]) subjects[subjectId].oposiciones = opChecks;
+    // NO sobreescribir las oposiciones de la asignatura existente al añadir una pregunta.
+    // Las oposiciones de la asignatura se gestionan desde "Administrar".
   }
 
   // ── Unidad/Tema ──
@@ -2159,7 +2147,7 @@ function saveEdit(id) {
   if (!newQ || newOpts.some(o => !o) || !newExp) { alert('Por favor completa todos los campos.'); return; }
 
   // ── Actualizar oposiciones de la asignatura ──
-  if (subjects[newSubject]) subjects[newSubject].oposiciones = editOpChecks;
+  // Las oposiciones de la asignatura no se modifican al editar una pregunta individual.
 
   const baseIdx   = BASE_QUESTIONS.findIndex(q => q.id === id);
   const customIdx = customQuestions.findIndex(q => q.id === id);
