@@ -812,28 +812,43 @@ let _sharedUnsubscribe = null;
 
 function listenSharedQuestions() {
   if (!window._fbDb || !window._fbFns) return;
-  // Cancelar listener anterior si existe
   if (_sharedUnsubscribe) { _sharedUnsubscribe(); _sharedUnsubscribe = null; }
 
   const { collection, onSnapshot, query, orderBy } = window._fbFns;
   const q = query(collection(window._fbDb, 'sharedQuestions'), orderBy('createdAt', 'desc'));
 
   _sharedUnsubscribe = onSnapshot(q, (snapshot) => {
-    // Preguntas compartidas: añadirlas a BASE_QUESTIONS si no existen ya
+    // Limpiar preguntas compartidas anteriores de BASE_QUESTIONS
+    // para evitar duplicados al re-escuchar
+    BASE_QUESTIONS = BASE_QUESTIONS.filter(x => !x._shared);
+
     snapshot.forEach((doc) => {
       const data = doc.data();
-      const qData = { ...data.question, id: 'shared_' + doc.id, _shared: true, _sharedBy: data.authorName };
-      // Evitar duplicados
-      if (!BASE_QUESTIONS.find(x => x.id === qData.id)) {
-        BASE_QUESTIONS.push(qData);
+      const myUid = currentUser ? currentUser.id : null;
+
+      // Si esta pregunta es del propio usuario, NO añadirla a BASE_QUESTIONS
+      // porque ya está en customQuestions (evita duplicado)
+      if (data.authorId === myUid) return;
+
+      // Importar la asignatura del autor si no existe en mi sesión
+      if (data.subject && data.subject.id && !subjects[data.subject.id]) {
+        subjects[data.subject.id] = data.subject;
       }
+
+      const qData = {
+        ...data.question,
+        id: 'shared_' + doc.id,
+        _shared: true,
+        _sharedBy: data.authorName
+      };
+      BASE_QUESTIONS.push(qData);
     });
+
     // Reconstruir allQuestions
     if (currentUser) {
       const skip = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
       allQuestions = BASE_QUESTIONS.filter(q => !skip.has(q.id)).concat(customQuestions.filter(q => !q._deleted));
       buildSidebar();
-      // Si estamos en home, refrescar los contadores
       if (currentNav === 'home') showHome();
     }
   }, (error) => {
@@ -845,8 +860,12 @@ async function shareQuestionToFirestore(question) {
   if (!window._fbDb || !window._fbUser || !currentUser) return;
   try {
     const { collection, addDoc, serverTimestamp } = window._fbFns;
+    // Incluir los datos completos de la asignatura para que otros usuarios
+    // puedan verla aunque no la tengan en su sesión
+    const subjectData = subjects[question.subject] || null;
     await addDoc(collection(window._fbDb, 'sharedQuestions'), {
       question: question,
+      subject: subjectData,
       authorName: currentUser.name,
       authorId: currentUser.id,
       createdAt: serverTimestamp()
