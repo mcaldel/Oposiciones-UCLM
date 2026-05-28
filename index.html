@@ -11,6 +11,44 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>EstudioTest – Portable</title>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAza4dzi5lj17OcDIaLthBDX5jGXZtm6GM",
+    authDomain: "oposiciones-uclm.firebaseapp.com",
+    projectId: "oposiciones-uclm",
+    storageBucket: "oposiciones-uclm.firebasestorage.app",
+    messagingSenderId: "481875726041",
+    appId: "1:481875726041:web:d385a0854997003c2878c8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Hacemos auth y db accesibles desde el resto del código
+  window._fbAuth = auth;
+  window._fbDb = db;
+  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp };
+
+  // Escuchar cambios de sesión Firebase
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      window._fbUser = user;
+      // Si la app ya está lista, actualizar el chip de usuario
+      if (typeof renderUserChip === 'function') renderUserChip();
+      // Cargar preguntas compartidas en tiempo real
+      if (typeof listenSharedQuestions === 'function') listenSharedQuestions();
+    } else {
+      window._fbUser = null;
+    }
+  });
+</script>
 <script id="app-data" type="application/json">
 {"customQuestions":[],"failedIds":[],"seenIds":[],"subjects":{},"oposiciones":{"administrativo":{"id":"administrativo","name":"Administrativo","icon":"🏛️","color":"#7f77dd"},"auxiliar":{"id":"auxiliar","name":"Auxiliar Administrativo","icon":"📋","color":"#1d9e75"},"gestor":{"id":"gestor","name":"Gestor de Servicios","icon":"⚙️","color":"#ba7517"}}}
 </script>
@@ -603,101 +641,135 @@ function saveSession(session) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
-/* ── Renderizado del login overlay ── */
+/* ════════════════════════════════════════════════════════
+   LOGIN — Firebase Authentication
+   ════════════════════════════════════════════════════════ */
+
 function showLoginScreen() {
   document.getElementById('login-overlay').classList.add('open');
-  const saved = loadSession();
-  if (saved) {
-    renderLoginForm(saved);   // ya existe perfil → pedir contraseña
-  } else {
-    renderRegisterForm();     // primera vez → crear perfil
+  renderFirebaseLoginForm();
+}
+
+function renderFirebaseLoginForm(mode) {
+  // mode: 'login' (default) o 'register'
+  mode = mode || 'login';
+  const isReg = mode === 'register';
+  document.getElementById('login-box-inner').innerHTML = `
+    <div class="login-logo">Estudio<span>Test</span></div>
+    <div class="login-sub">${isReg ? 'Crea tu cuenta para compartir preguntas' : 'Inicia sesión para continuar'}</div>
+    ${isReg ? `<div class="login-field">
+      <label>Tu nombre</label>
+      <input id="fb-name" type="text" placeholder="Ej: María García" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('fb-email').focus()">
+    </div>` : ''}
+    <div class="login-field">
+      <label>Correo electrónico</label>
+      <input id="fb-email" type="email" placeholder="tu@correo.com" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('fb-pass').focus()">
+    </div>
+    <div class="login-field">
+      <label>Contraseña ${isReg ? '(mínimo 6 caracteres)' : ''}</label>
+      <input id="fb-pass" type="password" placeholder="Tu contraseña" autocomplete="${isReg ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')${isReg ? 'doFirebaseRegister()' : 'doFirebaseLogin()'}">
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <button class="login-btn" onclick="${isReg ? 'doFirebaseRegister()' : 'doFirebaseLogin()'}">
+      ${isReg ? 'Crear cuenta' : 'Entrar'}
+    </button>
+    <button class="login-link" onclick="renderFirebaseLoginForm('${isReg ? 'login' : 'register'}')">
+      ${isReg ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+    </button>
+  `;
+  setTimeout(() => {
+    const el = document.getElementById(isReg ? 'fb-name' : 'fb-email');
+    if (el) el.focus();
+  }, 50);
+}
+
+async function doFirebaseRegister() {
+  const name  = (document.getElementById('fb-name')  ? document.getElementById('fb-name').value.trim() : '');
+  const email = (document.getElementById('fb-email').value || '').trim();
+  const pass  = (document.getElementById('fb-pass').value  || '');
+  const err   = document.getElementById('login-error');
+
+  if (!name)           { err.textContent = 'Escribe tu nombre.'; return; }
+  if (!email)          { err.textContent = 'Escribe tu correo electrónico.'; return; }
+  if (pass.length < 6) { err.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
+  err.textContent = 'Creando cuenta...';
+
+  try {
+    const { createUserWithEmailAndPassword } = window._fbFns;
+    const userCredential = await createUserWithEmailAndPassword(window._fbAuth, email, pass);
+    const fbUser = userCredential.user;
+    // Guardar nombre en localStorage asociado al uid
+    localStorage.setItem('et_name_' + fbUser.uid, name);
+    err.textContent = '';
+    afterFirebaseLogin(fbUser, name);
+  } catch(e) {
+    err.textContent = firebaseErrorMsg(e.code);
   }
 }
 
-function renderRegisterForm() {
-  document.getElementById('login-box-inner').innerHTML = `
-    <div class="login-logo">Estudio<span>Test</span></div>
-    <div class="login-sub">Crea tu perfil para guardar tu progreso</div>
-    <div class="login-field">
-      <label>Tu nombre</label>
-      <input id="reg-name" type="text" placeholder="Ej: María García" maxlength="30"
-             autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('reg-pass').focus()">
-    </div>
-    <div class="login-field">
-      <label>Contraseña</label>
-      <input id="reg-pass" type="password" placeholder="Mínimo 4 caracteres"
-             autocomplete="new-password" onkeydown="if(event.key==='Enter')document.getElementById('reg-pass2').focus()">
-    </div>
-    <div class="login-field">
-      <label>Confirmar contraseña</label>
-      <input id="reg-pass2" type="password" placeholder="Repite la contraseña"
-             autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()">
-    </div>
-    <div class="login-error" id="login-error"></div>
-    <button class="login-btn" onclick="doRegister()">Crear perfil</button>
-  `;
-  setTimeout(() => { const el = document.getElementById('reg-name'); if(el) el.focus(); }, 50);
-}
-
-function renderLoginForm(saved) {
-  const color = saved.color || '#7f77dd';
-  document.getElementById('login-box-inner').innerHTML = `
-    <div class="login-avatar" style="background:${color}20;color:${color}">
-      ${escHtml(saved.name.charAt(0).toUpperCase())}
-    </div>
-    <div class="login-welcome-name">${escHtml(saved.name)}</div>
-    <div class="login-welcome-sub">Introduce tu contraseña para continuar</div>
-    <div class="login-field">
-      <label>Contraseña</label>
-      <input id="login-pass" type="password" placeholder="Tu contraseña"
-             autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    </div>
-    <div class="login-error" id="login-error"></div>
-    <button class="login-btn" onclick="doLogin()">Entrar</button>
-    <button class="login-link" onclick="confirmResetProfile()">¿No eres tú? Resetear perfil</button>
-  `;
-  setTimeout(() => { const el = document.getElementById('login-pass'); if(el) el.focus(); }, 50);
-}
-
-function doRegister() {
-  const name  = (document.getElementById('reg-name').value  || '').trim();
-  const pass  = (document.getElementById('reg-pass').value  || '');
-  const pass2 = (document.getElementById('reg-pass2').value || '');
+async function doFirebaseLogin() {
+  const email = (document.getElementById('fb-email').value || '').trim();
+  const pass  = (document.getElementById('fb-pass').value  || '');
   const err   = document.getElementById('login-error');
-  if (!name)          { err.textContent = 'Escribe tu nombre.'; return; }
-  if (pass.length < 4){ err.textContent = 'La contraseña debe tener al menos 4 caracteres.'; return; }
-  if (pass !== pass2) { err.textContent = 'Las contraseñas no coinciden.'; return; }
-  err.textContent = '';
+
+  if (!email) { err.textContent = 'Escribe tu correo electrónico.'; return; }
+  if (!pass)  { err.textContent = 'Escribe tu contraseña.'; return; }
+  err.textContent = 'Entrando...';
+
+  try {
+    const { signInWithEmailAndPassword } = window._fbFns;
+    const userCredential = await signInWithEmailAndPassword(window._fbAuth, email, pass);
+    const fbUser = userCredential.user;
+    const name = localStorage.getItem('et_name_' + fbUser.uid) || fbUser.email.split('@')[0];
+    err.textContent = '';
+    afterFirebaseLogin(fbUser, name);
+  } catch(e) {
+    err.textContent = firebaseErrorMsg(e.code);
+  }
+}
+
+function afterFirebaseLogin(fbUser, name) {
+  window._fbUser = fbUser;
+  const color = getAvatarColor(name);
+  // Construir sesión compatible con el resto de la app
   const session = {
-    name,
-    passHash: simpleHash(pass),
-    color: getAvatarColor(name),
-    data: { customQuestions: [], failedIds: [], seenIds: [], subjects: copyObj(BASE_SUBJECTS), oposiciones: copyObj(BASE_OPOSICIONES) }
+    id: fbUser.uid,
+    name: name,
+    email: fbUser.email,
+    color: color,
+    data: loadLocalData(fbUser.uid)
   };
-  saveSession(session);
   startSession(session);
 }
 
-function doLogin() {
-  const saved = loadSession();
-  if (!saved) { showLoginScreen(); return; }
-  const pass = (document.getElementById('login-pass').value || '');
-  const err  = document.getElementById('login-error');
-  if (simpleHash(pass) !== saved.passHash) {
-    err.textContent = 'Contraseña incorrecta.';
-    document.getElementById('login-pass').value = '';
-    document.getElementById('login-pass').focus();
-    return;
-  }
-  err.textContent = '';
-  startSession(saved);
+function loadLocalData(uid) {
+  try {
+    const raw = localStorage.getItem('et_data_' + uid);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return { customQuestions: [], failedIds: [], seenIds: [], subjects: copyObj(BASE_SUBJECTS), oposiciones: copyObj(BASE_OPOSICIONES) };
 }
 
-function confirmResetProfile() {
-  if (!confirm('⚠️ Esto borrará tu perfil y TODO tu progreso guardado en este dispositivo.\n\n¿Seguro que quieres continuar?')) return;
-  localStorage.removeItem(SESSION_KEY);
+function firebaseErrorMsg(code) {
+  const msgs = {
+    'auth/email-already-in-use':    'Ya existe una cuenta con ese correo.',
+    'auth/invalid-email':           'El correo no es válido.',
+    'auth/weak-password':           'La contraseña es demasiado débil.',
+    'auth/user-not-found':          'No existe cuenta con ese correo.',
+    'auth/wrong-password':          'Contraseña incorrecta.',
+    'auth/invalid-credential':      'Correo o contraseña incorrectos.',
+    'auth/too-many-requests':       'Demasiados intentos. Espera un momento.',
+    'auth/network-request-failed':  'Error de conexión. Comprueba tu internet.',
+  };
+  return msgs[code] || 'Error: ' + code;
+}
+
+async function doLogout() {
+  if (!confirm('¿Cerrar sesión?')) return;
+  try { await window._fbFns.signOut(window._fbAuth); } catch(e) {}
   currentUser = null;
-  renderRegisterForm();
+  window._fbUser = null;
+  showLoginScreen();
 }
 
 function startSession(session) {
@@ -706,26 +778,83 @@ function startSession(session) {
   renderUserChip();
   loadData();
   buildSidebar();
+  listenSharedQuestions();
   showHome();
 }
 
 function renderUserChip() {
-  // Chip informativo (sin botón de logout) en la cabecera
   const wrap = document.getElementById('user-chip-wrap');
   if (!wrap || !currentUser) return;
   const c = currentUser.color || '#7f77dd';
-  wrap.innerHTML = `<div class="user-chip" title="${escHtml(currentUser.name)}">
+  wrap.innerHTML = `<div class="user-chip" title="${escHtml(currentUser.name)}" onclick="doLogout()" style="cursor:pointer" title="Cerrar sesión">
     <div class="user-chip-avatar" style="background:${c}20;color:${c}">${escHtml(currentUser.name.charAt(0).toUpperCase())}</div>
     <span class="user-chip-name">${escHtml(currentUser.name)}</span>
+    <span style="font-size:10px;color:var(--muted);margin-left:2px">↩</span>
   </div>`;
 }
 
 function tryAutoLogin() {
+  // Firebase gestiona la sesión automáticamente con onAuthStateChanged
+  // Intentar restaurar desde localStorage como fallback rápido
   const saved = loadSession();
-  if (!saved) return false;
-  // Si hay sesión guardada, auto-login sin pedir contraseña
-  startSession(saved);
-  return true;
+  if (saved && saved.id && window._fbUser) {
+    startSession(saved);
+    return true;
+  }
+  return false;
+}
+
+/* ════════════════════════════════════════════════════════
+   PREGUNTAS COMPARTIDAS — Firestore
+   ════════════════════════════════════════════════════════ */
+
+let _sharedUnsubscribe = null;
+
+function listenSharedQuestions() {
+  if (!window._fbDb || !window._fbFns) return;
+  // Cancelar listener anterior si existe
+  if (_sharedUnsubscribe) { _sharedUnsubscribe(); _sharedUnsubscribe = null; }
+
+  const { collection, onSnapshot, query, orderBy } = window._fbFns;
+  const q = query(collection(window._fbDb, 'sharedQuestions'), orderBy('createdAt', 'desc'));
+
+  _sharedUnsubscribe = onSnapshot(q, (snapshot) => {
+    // Preguntas compartidas: añadirlas a BASE_QUESTIONS si no existen ya
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const qData = { ...data.question, id: 'shared_' + doc.id, _shared: true, _sharedBy: data.authorName };
+      // Evitar duplicados
+      if (!BASE_QUESTIONS.find(x => x.id === qData.id)) {
+        BASE_QUESTIONS.push(qData);
+      }
+    });
+    // Reconstruir allQuestions
+    if (currentUser) {
+      const skip = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
+      allQuestions = BASE_QUESTIONS.filter(q => !skip.has(q.id)).concat(customQuestions.filter(q => !q._deleted));
+      buildSidebar();
+      // Si estamos en home, refrescar los contadores
+      if (currentNav === 'home') showHome();
+    }
+  }, (error) => {
+    console.warn('Error escuchando preguntas compartidas:', error);
+  });
+}
+
+async function shareQuestionToFirestore(question) {
+  if (!window._fbDb || !window._fbUser || !currentUser) return;
+  try {
+    const { collection, addDoc, serverTimestamp } = window._fbFns;
+    await addDoc(collection(window._fbDb, 'sharedQuestions'), {
+      question: question,
+      authorName: currentUser.name,
+      authorId: currentUser.id,
+      createdAt: serverTimestamp()
+    });
+    showSaveToast('✓ Pregunta compartida con todos los usuarios', 'ok');
+  } catch(e) {
+    showSaveToast('Error al compartir: ' + e.message, 'err');
+  }
 }
 
 
@@ -770,16 +899,21 @@ function saveData() {
     subjects,
     oposiciones
   };
-  // Persist session to localStorage
-  saveSession(currentUser);
-  // Also update HTML embedded data
+  // Guardar datos localmente usando el uid de Firebase
+  if (currentUser.id) {
+    try {
+      localStorage.setItem('et_data_' + currentUser.id, JSON.stringify(currentUser.data));
+      localStorage.setItem('et_name_' + currentUser.id, currentUser.name);
+    } catch(e) {}
+  } else {
+    saveSession(currentUser);
+  }
+  // También actualizar el elemento app-data embebido
   try {
     var payload = JSON.stringify({ customQuestions, failedIds: Array.from(failedIds), seenIds: Array.from(seenIds), subjects, oposiciones });
     var dataEl = document.getElementById('app-data');
     if (dataEl) dataEl.textContent = payload;
   } catch(e) {}
-  // Save to server if on localhost (per-user file)
-  saveUserToServer();
 }
 
 async function saveUserToServer() {
@@ -1796,15 +1930,29 @@ function submitAdd() {
   allQuestions = BASE_QUESTIONS.slice().concat(customQuestions.filter(cq => !cq._deleted));
   saveData(); saveQuestionToJSON(newQ); buildSidebar();
 
+  window._lastAddedQuestion = newQ;
   const toast = document.getElementById('add-toast');
   if (toast) {
+    toast.innerHTML = '✓ Pregunta guardada localmente. <button onclick="shareLastQuestion(this)" style="margin-left:8px;padding:4px 12px;background:var(--accent);border:none;border-radius:6px;color:#fff;font-family:DM Sans,sans-serif;font-size:12px;cursor:pointer;font-weight:600">🌐 Compartir con todos</button>';
     toast.style.display = 'block';
     setTimeout(() => {
       toast.style.display = 'none';
-      // Reset only question fields, keep subject/unit selection
+      toast.innerHTML = '✓ Pregunta añadida correctamente';
       ['add-q','add-exp'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
       [0,1,2,3].forEach(i => { const el=document.getElementById('add-opt'+i); if(el) el.value=''; });
-    }, 1800);
+    }, 6000);
+  }
+}
+
+async function shareLastQuestion(btn) {
+  if (!window._lastAddedQuestion) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Compartiendo...'; }
+  await shareQuestionToFirestore(window._lastAddedQuestion);
+  window._lastAddedQuestion = null;
+  const toast = document.getElementById('add-toast');
+  if (toast) {
+    toast.style.display = 'none';
+    toast.innerHTML = '✓ Pregunta añadida correctamente';
   }
 }
 
@@ -2107,14 +2255,42 @@ function buildSubjectQuickCardsHTML() {
 /* ── INIT ── */
 async function init() {
   var inner = document.getElementById('main-inner');
-  if (inner) inner.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--muted)">Cargando preguntas...</div>';
+  if (inner) inner.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--muted)">Cargando...</div>';
   try {
     var onLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (onLocalhost) await loadQuestionsFromJSON();
-    // Show login, then after login loadData+showHome happen
-    if (!tryAutoLogin()) {
-      showLoginScreen();
-    }
+
+    // Esperar a que Firebase resuelva el estado de autenticación
+    // Si en 2 segundos no hay usuario Firebase, mostrar login
+    await new Promise((resolve) => {
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) { resolved = true; resolve(); }
+      }, 2000);
+
+      // Comprobar si _fbAuth ya está disponible (puede tardar por ser module)
+      const checkAuth = () => {
+        if (window._fbAuth && window._fbFns) {
+          window._fbFns.onAuthStateChanged(window._fbAuth, (fbUser) => {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timeout);
+              if (fbUser) {
+                window._fbUser = fbUser;
+                const name = localStorage.getItem('et_name_' + fbUser.uid) || fbUser.email.split('@')[0];
+                afterFirebaseLogin(fbUser, name);
+              } else {
+                showLoginScreen();
+              }
+              resolve();
+            }
+          });
+        } else {
+          setTimeout(checkAuth, 100);
+        }
+      };
+      checkAuth();
+    });
   } catch(e) {
     document.getElementById('main-inner').innerHTML = '<div style="padding:2rem;color:#f0997b;font-family:sans-serif"><strong>Error al iniciar:</strong><br>' + e.message + '<br><br><small>Prueba a recargar la página.</small></div>';
   }
