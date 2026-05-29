@@ -685,7 +685,11 @@ function renderFirebaseLoginForm(mode) {
     <div class="login-sub">${isReg ? 'Crea tu cuenta para compartir preguntas' : 'Inicia sesión para continuar'}</div>
     ${isReg ? `<div class="login-field">
       <label>Tu nombre</label>
-      <input id="fb-name" type="text" placeholder="Ej: María García" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('fb-email').focus()">
+      <input id="fb-name" type="text" placeholder="Ej: María García" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('fb-invite').focus()">
+    </div>
+    <div class="login-field">
+      <label>Código de invitación</label>
+      <input id="fb-invite" type="text" placeholder="Escribe el código que te han dado" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('fb-email').focus()">
     </div>` : ''}
     <div class="login-field">
       <label>Correo electrónico</label>
@@ -715,9 +719,11 @@ async function doFirebaseRegister() {
   const pass  = (document.getElementById('fb-pass').value  || '');
   const err   = document.getElementById('login-error');
 
-  if (!name)           { err.textContent = 'Escribe tu nombre.'; return; }
-  if (!email)          { err.textContent = 'Escribe tu correo electrónico.'; return; }
-  if (pass.length < 6) { err.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
+  const invite = (document.getElementById('fb-invite') ? document.getElementById('fb-invite').value.trim() : '');
+  if (!name)                    { err.textContent = 'Escribe tu nombre.'; return; }
+  if (invite !== 'Opos-UCLM')  { err.textContent = 'Código de invitación incorrecto.'; return; }
+  if (!email)                   { err.textContent = 'Escribe tu correo electrónico.'; return; }
+  if (pass.length < 6)          { err.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
   err.textContent = 'Creando cuenta...';
 
   try {
