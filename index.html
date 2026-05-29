@@ -834,10 +834,11 @@ function listenSharedQuestions() {
       }
 
       // Asegurarse de que oposiciones viene de la pregunta
-      // Si no tiene campo propio, intentar sacarlo del documento raíz
       const questionOposiciones = (data.question.oposiciones && data.question.oposiciones.length > 0)
         ? data.question.oposiciones
         : (data.oposiciones || []);
+
+      console.log('[Firestore] Pregunta recibida:', data.question.q, '| oposiciones:', questionOposiciones);
 
       const qData = {
         ...data.question,
