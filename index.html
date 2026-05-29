@@ -2002,7 +2002,10 @@ function showAdmin() {
                 <td style="font-size:12px;color:${getSubjectColor(q.subject)}">${getSubjectName(q.subject)}<br><span style="color:var(--muted)">${q.unitName}</span></td>
                 <td><div class="admin-q-text">${q.q}</div></td>
                 <td style="font-size:11px;line-height:1.6">${
-                  ((subjects[q.subject]||{}).oposiciones||[]).map(opId => {
+                  (q.oposiciones && q.oposiciones.length > 0
+                    ? q.oposiciones
+                    : (subjects[q.subject]||{}).oposiciones||[]
+                  ).map(opId => {
                     const op = oposiciones[opId]; return op ? `<span title="${op.name}" style="margin-right:3px">${op.icon}</span>` : '';
                   }).join('')
                   || '<span style="color:var(--muted);font-size:10px">—</span>'
