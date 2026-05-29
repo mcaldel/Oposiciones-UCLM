@@ -415,6 +415,30 @@
   @media (max-width: 640px) { .subject-quick-grid { grid-template-columns: 1fr; } }
 
   /* ── LOGIN / SESIÓN ── */
+  /* ── TEMARIO ── */
+  .temario-opos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 2rem; }
+  .temario-opos-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 1.25rem 1.5rem; cursor: pointer; transition: border-color 0.18s, background 0.18s; }
+  .temario-opos-card:hover { border-color: var(--accent); background: var(--accent-bg); }
+  .temario-opos-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  .temario-opos-name { font-size: 1rem; font-weight: 600; color: var(--text); }
+  .temario-opos-count { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .temario-back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; margin-bottom: 1.25rem; padding: 6px 0; }
+  .temario-back:hover { color: var(--text); }
+  .temario-tema-list { display: flex; flex-direction: column; gap: 10px; }
+  .temario-tema-card { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; cursor: pointer; transition: border-color 0.18s; text-decoration: none; }
+  .temario-tema-card:hover { border-color: var(--accent); }
+  .temario-tema-num { font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-bg); border-radius: 6px; padding: 3px 8px; min-width: 54px; text-align: center; }
+  .temario-tema-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
+  .temario-tema-arrow { color: var(--muted); font-size: 16px; }
+  .temario-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 3rem 0; }
+  .temario-admin-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); font-size: 12px; padding: 6px 14px; border-radius: 8px; cursor: pointer; margin-bottom: 1.25rem; }
+  .temario-admin-btn:hover { color: var(--text); border-color: var(--accent); }
+  .temario-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.5rem; display: none; }
+  .temario-form.open { display: block; }
+  .temario-form-title { font-size: 14px; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
+  .temario-form input, .temario-form select { width: 100%; padding: 9px 12px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 13px; font-family: inherit; box-sizing: border-box; margin-bottom: 10px; }
+  .temario-form input:focus, .temario-form select:focus { outline: none; border-color: var(--accent); }
+
   .login-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: var(--bg); align-items: center; justify-content: center; flex-direction: column; }
   .login-overlay.open { display: flex; }
   .login-box { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 2.5rem 2rem; max-width: 380px; width: 92%; box-shadow: 0 32px 80px rgba(0,0,0,0.6); }
@@ -492,6 +516,7 @@ if ('serviceWorker' in navigator) {
     <button class="pill" id="pill-review" onclick="navTo('review')">📖 Repasar</button>
     <button class="pill" id="pill-failed" onclick="navTo('failed')">Falladas <span id="failed-count-nav"></span></button>
     <button class="pill" id="pill-add" onclick="navTo('add')">+ Añadir</button>
+    <button class="pill" id="pill-temario" onclick="navTo('temario')">📄 Temario</button>
     <button class="pill" id="pill-admin" onclick="navTo('admin')">Administrar</button>
 
   </div>
@@ -560,6 +585,9 @@ if ('serviceWorker' in navigator) {
   </button>
   <button class="bnav-btn" id="bnav-review" onclick="navTo('review')">
     <span class="bnav-icon">📖</span>Repasar
+  </button>
+  <button class="bnav-btn" id="bnav-temario" onclick="navTo('temario')">
+    <span class="bnav-icon">📄</span>Temario
   </button>
   <button class="bnav-btn" id="bnav-failed" onclick="navTo('failed')">
     <span class="bnav-icon">⚑</span>Falladas<span id="failed-count-bnav"></span>
@@ -777,6 +805,7 @@ function startSession(session) {
   loadData();
   buildSidebar();
   listenSharedQuestions();
+  listenTemario();
   showHome();
 }
 
@@ -1098,6 +1127,7 @@ function navTo(view) {
   else if (view === 'failed') showFailed();
   else if (view === 'add') showAdd();
   else if (view === 'admin') showAdmin();
+  else if (view === 'temario') showTemario();
 }
 
 function setActivePill(view) {
@@ -1105,7 +1135,7 @@ function setActivePill(view) {
   const p = document.getElementById('pill-' + view);
   if (p) p.classList.add('active');
   document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
-  const bmap = { home: 'bnav-home', review: 'bnav-review', failed: 'bnav-failed', add: 'bnav-add' };
+  const bmap = { home: 'bnav-home', review: 'bnav-review', temario: 'bnav-temario', failed: 'bnav-failed', add: 'bnav-add' };
   const bId = bmap[view];
   if (bId) { const bb = document.getElementById(bId); if (bb) bb.classList.add('active'); }
 }
@@ -2388,6 +2418,158 @@ async function init() {
     });
   } catch(e) {
     document.getElementById('main-inner').innerHTML = '<div style="padding:2rem;color:#f0997b;font-family:sans-serif"><strong>Error al iniciar:</strong><br>' + e.message + '<br><br><small>Prueba a recargar la página.</small></div>';
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   TEMARIO
+   ════════════════════════════════════════════════════════ */
+
+// Datos del temario — se cargan/guardan en Firestore
+let temarioData = {}; // { oposicionId: [ { num, titulo, url } ] }
+let _temarioUnsubscribe = null;
+let _temarioOposActual = null; // null = pantalla principal
+
+function listenTemario() {
+  if (!window._fbDb || !window._fbFns) return;
+  if (_temarioUnsubscribe) { _temarioUnsubscribe(); _temarioUnsubscribe = null; }
+  const { collection, onSnapshot, query, orderBy } = window._fbFns;
+  const q = query(collection(window._fbDb, 'temario'), orderBy('oposicion'), orderBy('num'));
+  _temarioUnsubscribe = onSnapshot(q, (snapshot) => {
+    temarioData = {};
+    snapshot.forEach((doc) => {
+      const d = doc.data();
+      if (!temarioData[d.oposicion]) temarioData[d.oposicion] = [];
+      temarioData[d.oposicion].push({ id: doc.id, num: d.num, titulo: d.titulo, url: d.url });
+    });
+    // Ordenar por número
+    Object.keys(temarioData).forEach(k => {
+      temarioData[k].sort((a, b) => a.num - b.num);
+    });
+    if (currentNav === 'temario') showTemario();
+  }, (err) => console.warn('Error temario:', err));
+}
+
+function showTemario(oposId) {
+  _temarioOposActual = oposId || null;
+  const isAdmin = currentUser && currentUser.email === 'mcalzadodelgado@gmail.com'; // solo admin puede añadir
+
+  if (!oposId) {
+    // Pantalla principal — lista de oposiciones
+    const cards = Object.values(oposiciones).map(op => {
+      const count = (temarioData[op.id] || []).length;
+      return `<div class="temario-opos-card" onclick="showTemario('${op.id}')">
+        <div class="temario-opos-icon">${op.icon}</div>
+        <div class="temario-opos-name">${op.name}</div>
+        <div class="temario-opos-count">${count} tema${count !== 1 ? 's' : ''}</div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('main-inner').innerHTML = `
+      <div class="home-hero"><h1>📄 Temario</h1></div>
+      <div class="temario-opos-grid">${cards}</div>
+    `;
+  } else {
+    // Pantalla de temas de una oposición
+    const op = oposiciones[oposId];
+    const temas = temarioData[oposId] || [];
+
+    const temasHtml = temas.length > 0
+      ? temas.map(t => `
+        <a class="temario-tema-card" href="${t.url}" target="_blank" rel="noopener">
+          <span class="temario-tema-num">Tema ${t.num}</span>
+          <span class="temario-tema-title">${escHtml(t.titulo)}</span>
+          <span class="temario-tema-arrow">↗</span>
+        </a>`).join('')
+      : `<div class="temario-empty">Aún no hay temas para esta oposición.</div>`;
+
+    const adminSection = isAdmin ? `
+      <button class="temario-admin-btn" onclick="toggleTemarioForm()">＋ Añadir tema</button>
+      <div class="temario-form" id="temario-form">
+        <div class="temario-form-title">Nuevo tema — ${op ? op.name : ''}</div>
+        <input type="number" id="tf-num" placeholder="Número de tema (ej: 1)" min="1">
+        <input type="text" id="tf-titulo" placeholder="Título del tema (ej: La Constitución Española)">
+        <input type="text" id="tf-url" placeholder="URL del PDF (https://mcaldel.github.io/Oposiciones-UCLM/temario/...)">
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn-sec" onclick="toggleTemarioForm()">Cancelar</button>
+          <button class="btn-primary visible" onclick="submitTemaTema('${oposId}')">Guardar tema</button>
+        </div>
+      </div>
+    ` : '';
+
+    const deleteButtons = isAdmin
+      ? temas.map(t => `
+        <div style="display:flex;align-items:center;gap:8px;margin-top:-6px;margin-bottom:4px;padding-left:1.25rem">
+          <button onclick="deleteTema('${t.id}')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0">🗑 Eliminar</button>
+        </div>`).join('')
+      : '';
+
+    // Si admin, intercalar botones de eliminar tras cada tarjeta
+    let temasConDelete = '';
+    if (isAdmin && temas.length > 0) {
+      temas.forEach(t => {
+        temasConDelete += `
+          <a class="temario-tema-card" href="${t.url}" target="_blank" rel="noopener">
+            <span class="temario-tema-num">Tema ${t.num}</span>
+            <span class="temario-tema-title">${escHtml(t.titulo)}</span>
+            <span class="temario-tema-arrow">↗</span>
+          </a>
+          <div style="padding-left:4px;margin-top:-4px">
+            <button onclick="event.stopPropagation();deleteTema('${t.id}')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;padding:4px 0">🗑 Eliminar tema</button>
+          </div>`;
+      });
+    }
+
+    document.getElementById('main-inner').innerHTML = `
+      <div class="temario-back" onclick="showTemario()">← Volver a oposiciones</div>
+      <div class="home-hero" style="margin-bottom:1rem"><h1>${op ? op.icon + ' ' + op.name : ''}</h1></div>
+      ${adminSection}
+      <div class="temario-tema-list">
+        ${isAdmin && temas.length > 0 ? temasConDelete : temasHtml}
+      </div>
+    `;
+  }
+}
+
+function toggleTemarioForm() {
+  const f = document.getElementById('temario-form');
+  if (f) f.classList.toggle('open');
+}
+
+async function submitTemaTema(oposId) {
+  const num    = parseInt(document.getElementById('tf-num').value);
+  const titulo = (document.getElementById('tf-titulo').value || '').trim();
+  const url    = (document.getElementById('tf-url').value || '').trim();
+
+  if (!num || num < 1)  { alert('Escribe el número del tema.'); return; }
+  if (!titulo)          { alert('Escribe el título del tema.'); return; }
+  if (!url)             { alert('Pega la URL del PDF.'); return; }
+  if (!url.startsWith('http')) { alert('La URL debe empezar por https://'); return; }
+
+  try {
+    const { collection, addDoc, serverTimestamp } = window._fbFns;
+    await addDoc(collection(window._fbDb, 'temario'), {
+      oposicion: oposId,
+      num,
+      titulo,
+      url,
+      creadoEn: serverTimestamp()
+    });
+    showSaveToast('✓ Tema añadido correctamente', 'ok');
+    toggleTemarioForm();
+  } catch(e) {
+    alert('Error al guardar: ' + e.message);
+  }
+}
+
+async function deleteTema(docId) {
+  if (!confirm('¿Eliminar este tema?')) return;
+  try {
+    const { deleteDoc, doc } = window._fbFns;
+    await deleteDoc(doc(window._fbDb, 'temario', docId));
+    showSaveToast('Tema eliminado', 'warn');
+  } catch(e) {
+    alert('Error al eliminar: ' + e.message);
   }
 }
 
