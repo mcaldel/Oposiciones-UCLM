@@ -833,8 +833,15 @@ function listenSharedQuestions() {
         subjects[data.subject.id] = data.subject;
       }
 
+      // Asegurarse de que oposiciones viene de la pregunta
+      // Si no tiene campo propio, intentar sacarlo del documento raíz
+      const questionOposiciones = (data.question.oposiciones && data.question.oposiciones.length > 0)
+        ? data.question.oposiciones
+        : (data.oposiciones || []);
+
       const qData = {
         ...data.question,
+        oposiciones: questionOposiciones,
         id: 'shared_' + doc.id,
         _shared: true,
         _sharedBy: data.authorName
@@ -2004,7 +2011,7 @@ function showAdmin() {
                 <td style="font-size:11px;line-height:1.6">${
                   (q.oposiciones && q.oposiciones.length > 0
                     ? q.oposiciones
-                    : (subjects[q.subject]||{}).oposiciones||[]
+                    : []
                   ).map(opId => {
                     const op = oposiciones[opId]; return op ? `<span title="${op.name}" style="margin-right:3px">${op.icon}</span>` : '';
                   }).join('')
