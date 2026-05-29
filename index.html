@@ -880,7 +880,7 @@ let customQuestions = [];
 let failedIds = new Set();
 let seenIds = new Set();
 let subjects = {};
-let oposiciones = {};
+let oposiciones = copyObj(BASE_OPOSICIONES);
 let currentNav = 'home';
 let currentSubjectFilter = 'all';
 let currentUnitFilter = 'all';
@@ -1705,7 +1705,8 @@ function showAdd() {
 
   // Helpers: oposiciones checkboxes HTML
   function opChecksHtml(prefix, selectedOps) {
-    return Object.values(oposiciones).map(op => {
+    const ops = Object.keys(oposiciones).length > 0 ? oposiciones : BASE_OPOSICIONES;
+    return Object.values(ops).map(op => {
       const checked = selectedOps && selectedOps.includes(op.id) ? 'checked' : '';
       return `<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'">
         <input type="checkbox" name="${prefix}_op" value="${op.id}" ${checked} style="width:15px;height:15px;accent-color:var(--accent)">
