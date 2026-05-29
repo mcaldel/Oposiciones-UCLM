@@ -2446,7 +2446,7 @@ function listenTemario() {
     snapshot.forEach((doc) => {
       const d = doc.data();
       if (!temarioData[d.oposicion]) temarioData[d.oposicion] = [];
-      temarioData[d.oposicion].push({ id: doc.id, num: d.num, titulo: d.titulo, url: d.url });
+      temarioData[d.oposicion].push({ id: doc.id, num: d.num, titulo: d.titulo, url: d.url, oposiciones: d.oposiciones || [d.oposicion] });
     });
     // Ordenar por número
     Object.keys(temarioData).forEach(k => {
@@ -2490,8 +2490,8 @@ function showTemario(oposId) {
       : `<div class="temario-empty">Aún no hay temas para esta oposición.</div>`;
 
     const opCheckboxes = Object.values(oposiciones).map(o =>
-      `<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:13px">
-        <input type="checkbox" name="tf_op" value="${o.id}" ${o.id === oposId ? 'checked' : ''} style="accent-color:var(--accent)">
+      `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;line-height:1.2">
+        <input type="checkbox" name="tf_op" value="${o.id}" ${o.id === oposId ? 'checked' : ''} style="accent-color:var(--accent);width:12px;height:12px;flex-shrink:0">
         <span>${o.icon} ${o.name}</span>
       </label>`
     ).join('');
@@ -2514,14 +2514,7 @@ function showTemario(oposId) {
       </div>
     ` : '';
 
-    const deleteButtons = isAdmin
-      ? temas.map(t => `
-        <div style="display:flex;align-items:center;gap:8px;margin-top:-6px;margin-bottom:4px;padding-left:1.25rem">
-          <button onclick="deleteTema('${t.id}')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;padding:0">🗑 Eliminar</button>
-        </div>`).join('')
-      : '';
-
-    // Si admin, intercalar botones de eliminar tras cada tarjeta
+    // Si admin, intercalar botones de editar/eliminar tras cada tarjeta
     let temasConDelete = '';
     if (isAdmin && temas.length > 0) {
       temas.forEach(t => {
@@ -2531,8 +2524,30 @@ function showTemario(oposId) {
             <span class="temario-tema-title">${escHtml(t.titulo)}</span>
             <span class="temario-tema-arrow">↗</span>
           </a>
-          <div style="padding-left:4px;margin-top:-4px">
-            <button onclick="event.stopPropagation();deleteTema('${t.id}')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;padding:4px 0">🗑 Eliminar tema</button>
+          <div style="display:flex;gap:12px;padding-left:4px;margin-top:-4px;margin-bottom:4px">
+            <button onclick="event.stopPropagation();editTema('${t.id}')" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:4px 0">✏️ Editar</button>
+            <button onclick="event.stopPropagation();deleteTema('${t.id}')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;padding:4px 0">🗑 Eliminar</button>
+          </div>
+          <div class="temario-form" id="temario-edit-form-${t.id}">
+            <div class="temario-form-title">Editar tema</div>
+            <div style="margin-bottom:10px">
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Oposiciones donde aparece</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                ${Object.values(oposiciones).map(o =>
+                  `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px">
+                    <input type="checkbox" name="tfe_op_${t.id}" value="${o.id}" ${(t.oposiciones||[oposId]).includes(o.id) ? 'checked' : ''} style="accent-color:var(--accent);width:12px;height:12px">
+                    <span>${o.icon} ${o.name}</span>
+                  </label>`
+                ).join('')}
+              </div>
+            </div>
+            <input type="number" id="tfe-num-${t.id}" value="${t.num}" placeholder="Número de tema" min="1">
+            <input type="text" id="tfe-titulo-${t.id}" value="${escHtml(t.titulo)}" placeholder="Título del tema">
+            <input type="text" id="tfe-url-${t.id}" value="${escHtml(t.url)}" placeholder="URL del PDF">
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button class="btn-sec" onclick="document.getElementById('temario-edit-form-${t.id}').classList.remove('open')">Cancelar</button>
+              <button class="btn-primary visible" onclick="saveEditTema('${t.id}', '${oposId}')">Guardar cambios</button>
+            </div>
           </div>`;
       });
     }
@@ -2571,6 +2586,7 @@ async function submitTemaTema() {
     for (const oposId of opsSeleccionadas) {
       await addDoc(collection(window._fbDb, 'temario'), {
         oposicion: oposId,
+        oposiciones: opsSeleccionadas,
         num,
         titulo,
         url,
@@ -2592,6 +2608,61 @@ async function deleteTema(docId) {
     showSaveToast('Tema eliminado', 'warn');
   } catch(e) {
     alert('Error al eliminar: ' + e.message);
+  }
+}
+
+function editTema(docId) {
+  // Cerrar otros formularios de edición abiertos
+  document.querySelectorAll('.temario-form.open').forEach(f => f.classList.remove('open'));
+  const form = document.getElementById('temario-edit-form-' + docId);
+  if (form) form.classList.toggle('open');
+}
+
+async function saveEditTema(docId, oposActual) {
+  const num    = parseInt(document.getElementById('tfe-num-' + docId).value);
+  const titulo = (document.getElementById('tfe-titulo-' + docId).value || '').trim();
+  const url    = (document.getElementById('tfe-url-' + docId).value || '').trim();
+  const opsSeleccionadas = Array.from(document.querySelectorAll(`input[name="tfe_op_${docId}"]:checked`)).map(c => c.value);
+
+  if (opsSeleccionadas.length === 0) { alert('Selecciona al menos una oposición.'); return; }
+  if (!num || num < 1)               { alert('Escribe el número del tema.'); return; }
+  if (!titulo)                       { alert('Escribe el título del tema.'); return; }
+  if (!url)                          { alert('La URL no puede estar vacía.'); return; }
+
+  try {
+    const { collection, addDoc, deleteDoc, doc, serverTimestamp } = window._fbFns;
+    const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    // Buscar todos los documentos de Firestore con el mismo título y url original
+    // (pueden haber varios si está en varias oposiciones)
+    const snap = await getDocs(collection(window._fbDb, 'temario'));
+    const docsDelMismoTema = [];
+    snap.forEach(d => {
+      const data = d.data();
+      if (d.id === docId || (data.titulo === titulo && data.url === url)) {
+        docsDelMismoTema.push(d.id);
+      }
+    });
+
+    // Borrar los documentos existentes de este tema
+    for (const id of docsDelMismoTema) {
+      await deleteDoc(doc(window._fbDb, 'temario', id));
+    }
+
+    // Crear uno nuevo por cada oposición seleccionada
+    for (const oposId of opsSeleccionadas) {
+      await addDoc(collection(window._fbDb, 'temario'), {
+        oposicion: oposId,
+        num,
+        titulo,
+        url,
+        creadoEn: serverTimestamp()
+      });
+    }
+
+    showSaveToast('✓ Tema actualizado correctamente', 'ok');
+  } catch(e) {
+    alert('Error al guardar: ' + e.message);
   }
 }
 
