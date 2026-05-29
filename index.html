@@ -298,8 +298,8 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 100px; }
 
-  .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 200; background: var(--surface); border-top: 1px solid var(--border); padding: 0.5rem 0 env(safe-area-inset-bottom, 0.5rem); justify-content: space-around; align-items: center; }
-  .bnav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; background: transparent; border: none; color: var(--muted); font-family: 'DM Sans', -apple-system, 'Helvetica Neue', system-ui, sans-serif; font-size: 10px; font-weight: 500; padding: 6px 10px; border-radius: 10px; cursor: pointer; transition: color 0.15s; min-width: 54px; }
+  .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 400; background: var(--surface); border-top: 1px solid var(--border); padding: 0.5rem 0 env(safe-area-inset-bottom, 0.5rem); justify-content: space-around; align-items: center; }
+  .bnav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; background: transparent; border: none; color: var(--muted); font-family: 'DM Sans', -apple-system, 'Helvetica Neue', system-ui, sans-serif; font-size: 10px; font-weight: 500; padding: 6px 10px; border-radius: 10px; cursor: pointer; transition: color 0.15s; min-width: 54px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .bnav-btn .bnav-icon { font-size: 19px; line-height: 1; }
   .bnav-btn.active { color: var(--accent-light); }
   .bnav-btn.save-btn { display: none !important; }
