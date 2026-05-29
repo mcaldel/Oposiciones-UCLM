@@ -2489,16 +2489,27 @@ function showTemario(oposId) {
         </a>`).join('')
       : `<div class="temario-empty">Aún no hay temas para esta oposición.</div>`;
 
+    const opCheckboxes = Object.values(oposiciones).map(o =>
+      `<label style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:13px">
+        <input type="checkbox" name="tf_op" value="${o.id}" ${o.id === oposId ? 'checked' : ''} style="accent-color:var(--accent)">
+        <span>${o.icon} ${o.name}</span>
+      </label>`
+    ).join('');
+
     const adminSection = isAdmin ? `
       <button class="temario-admin-btn" onclick="toggleTemarioForm()">＋ Añadir tema</button>
       <div class="temario-form" id="temario-form">
-        <div class="temario-form-title">Nuevo tema — ${op ? op.name : ''}</div>
+        <div class="temario-form-title">Nuevo tema</div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Oposiciones donde aparece este tema</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">${opCheckboxes}</div>
+        </div>
         <input type="number" id="tf-num" placeholder="Número de tema (ej: 1)" min="1">
         <input type="text" id="tf-titulo" placeholder="Título del tema (ej: La Constitución Española)">
         <input type="text" id="tf-url" placeholder="URL del PDF (https://mcaldel.github.io/Oposiciones-UCLM/temario/...)">
         <div style="display:flex;gap:8px;margin-top:4px">
           <button class="btn-sec" onclick="toggleTemarioForm()">Cancelar</button>
-          <button class="btn-primary visible" onclick="submitTemaTema('${oposId}')">Guardar tema</button>
+          <button class="btn-primary visible" onclick="submitTemaTema()">Guardar tema</button>
         </div>
       </div>
     ` : '';
@@ -2542,26 +2553,31 @@ function toggleTemarioForm() {
   if (f) f.classList.toggle('open');
 }
 
-async function submitTemaTema(oposId) {
+async function submitTemaTema() {
   const num    = parseInt(document.getElementById('tf-num').value);
   const titulo = (document.getElementById('tf-titulo').value || '').trim();
   const url    = (document.getElementById('tf-url').value || '').trim();
+  const opsSeleccionadas = Array.from(document.querySelectorAll('input[name="tf_op"]:checked')).map(c => c.value);
 
-  if (!num || num < 1)  { alert('Escribe el número del tema.'); return; }
-  if (!titulo)          { alert('Escribe el título del tema.'); return; }
-  if (!url)             { alert('Pega la URL del PDF.'); return; }
-  if (!url.startsWith('http')) { alert('La URL debe empezar por https://'); return; }
+  if (opsSeleccionadas.length === 0) { alert('Selecciona al menos una oposición.'); return; }
+  if (!num || num < 1)               { alert('Escribe el número del tema.'); return; }
+  if (!titulo)                       { alert('Escribe el título del tema.'); return; }
+  if (!url)                          { alert('Pega la URL del PDF.'); return; }
+  if (!url.startsWith('http'))       { alert('La URL debe empezar por https://'); return; }
 
   try {
     const { collection, addDoc, serverTimestamp } = window._fbFns;
-    await addDoc(collection(window._fbDb, 'temario'), {
-      oposicion: oposId,
-      num,
-      titulo,
-      url,
-      creadoEn: serverTimestamp()
-    });
-    showSaveToast('✓ Tema añadido correctamente', 'ok');
+    // Guardar un documento por cada oposición seleccionada
+    for (const oposId of opsSeleccionadas) {
+      await addDoc(collection(window._fbDb, 'temario'), {
+        oposicion: oposId,
+        num,
+        titulo,
+        url,
+        creadoEn: serverTimestamp()
+      });
+    }
+    showSaveToast(`✓ Tema añadido en ${opsSeleccionadas.length} oposición${opsSeleccionadas.length > 1 ? 'es' : ''}`, 'ok');
     toggleTemarioForm();
   } catch(e) {
     alert('Error al guardar: ' + e.message);
