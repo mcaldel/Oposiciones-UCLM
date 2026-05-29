@@ -2433,8 +2433,8 @@ let _temarioOposActual = null; // null = pantalla principal
 function listenTemario() {
   if (!window._fbDb || !window._fbFns) return;
   if (_temarioUnsubscribe) { _temarioUnsubscribe(); _temarioUnsubscribe = null; }
-  const { collection, onSnapshot, query, orderBy } = window._fbFns;
-  const q = query(collection(window._fbDb, 'temario'), orderBy('oposicion'), orderBy('num'));
+  const { collection, onSnapshot } = window._fbFns;
+  const q = collection(window._fbDb, 'temario');
   _temarioUnsubscribe = onSnapshot(q, (snapshot) => {
     temarioData = {};
     snapshot.forEach((doc) => {
@@ -2446,7 +2446,7 @@ function listenTemario() {
     Object.keys(temarioData).forEach(k => {
       temarioData[k].sort((a, b) => a.num - b.num);
     });
-    if (currentNav === 'temario') showTemario();
+    if (currentNav === 'temario') showTemario(_temarioOposActual);
   }, (err) => console.warn('Error temario:', err));
 }
 
