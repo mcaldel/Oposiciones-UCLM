@@ -1267,8 +1267,7 @@ function wizardStep0(preselect) {
   const cards = Object.values(oposiciones).map(op => {
     const opQs = getQuestionsForOposicion(op.id);
     const fCount = opQs.filter(q => failedIds.has(q.id)).length;
-    const sids = new Set(getSubjectsForOposicion(op.id).map(s => s.id));
-    const subjectCount = [...sids].filter(sid => allQuestions.some(q => q.subject === sid)).length;
+    const subjectCount = new Set(opQs.map(q => q.subject)).size;
     return `<div class="op-card" onclick="selectOposicion('${op.id}')" style="border-left:3px solid ${op.color}">
       <div class="op-card-icon">${op.icon}</div>
       <div class="op-card-info">
