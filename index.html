@@ -1054,8 +1054,9 @@ function getOposicionForSubject(subjectId) {
   const s = subjects[subjectId] || {};
   return (s.oposiciones && s.oposiciones[0]) || s.oposicion || 'auxiliar';
 }
-function getUnitsForSubject(subjectId) {
-  const qs = subjectId === 'all' ? allQuestions : allQuestions.filter(q => q.subject === subjectId);
+function getUnitsForSubject(subjectId, opFilter) {
+  let base = opFilter && opFilter !== 'all' ? getQuestionsForOposicion(opFilter) : allQuestions;
+  const qs = subjectId === 'all' ? base : base.filter(q => q.subject === subjectId);
   const map = {};
   qs.forEach(q => { if (!map[q.unit]) map[q.unit] = { unit: q.unit, name: q.unitName, subject: q.subject, count: 0 }; map[q.unit].count++; });
   return Object.values(map).sort((a, b) => {
@@ -1322,10 +1323,15 @@ function wizardStep1() {
   const opLabel = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).name : 'Todas las oposiciones';
   const opColor = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).color : 'var(--accent)';
 
+  // Preguntas filtradas por oposición actual
+  const qsDeEstaOp = wizardOposicion && wizardOposicion !== 'all'
+    ? getQuestionsForOposicion(wizardOposicion)
+    : allQuestions;
+
   const cards = filteredSubjects.map(sid => {
     const s = subjects[sid];
-    const count = allQuestions.filter(q => q.subject === sid).length;
-    const fCount = Array.from(failedIds).filter(id => { const q = allQuestions.find(x=>x.id===id); return q && q.subject===sid; }).length;
+    const count = qsDeEstaOp.filter(q => q.subject === sid).length;
+    const fCount = Array.from(failedIds).filter(id => { const q = qsDeEstaOp.find(x=>x.id===id); return q && q.subject===sid; }).length;
     return `<div class="wz-card" onclick="wizardStep2('${sid}')">
       <div class="wz-card-dot" style="background:${s.color}"></div>
       <div class="wz-card-info">
@@ -1337,7 +1343,7 @@ function wizardStep1() {
     </div>`;
   }).join('');
 
-  const totalOp = filteredSubjects.reduce((acc, sid) => acc + allQuestions.filter(q => q.subject === sid).length, 0);
+  const totalOp = filteredSubjects.reduce((acc, sid) => acc + qsDeEstaOp.filter(q => q.subject === sid).length, 0);
 
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
@@ -1373,13 +1379,14 @@ function wizardSelectAll() {
 function wizardStep2(subjectId) {
   wizardSubject = subjectId; wizardUnit = null;
   const s = subjects[subjectId];
-  const units = getUnitsForSubject(subjectId);
-  const totalSubject = allQuestions.filter(q => q.subject === subjectId).length;
+  const units = getUnitsForSubject(subjectId, wizardOposicion);
+  const qsDeEstaOp = wizardOposicion && wizardOposicion !== 'all' ? getQuestionsForOposicion(wizardOposicion) : allQuestions;
+  const totalSubject = qsDeEstaOp.filter(q => q.subject === subjectId).length;
   const opLabel = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).name : 'Todas';
   const opColor = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).color : 'var(--accent)';
 
   const unitCards = units.map(u => {
-    const fCount = Array.from(failedIds).filter(id => { const q=allQuestions.find(x=>x.id===id); return q && q.unit===u.unit; }).length;
+    const fCount = Array.from(failedIds).filter(id => { const q=qsDeEstaOp.find(x=>x.id===id); return q && q.unit===u.unit; }).length;
     return `<div class="wz-card" onclick="wizardSelectUnit('${u.unit}','${u.name.replace(/'/g,"\\'").replace(/"/g,"&quot;")}')">
       <div class="wz-card-dot" style="background:${s.color}"></div>
       <div class="wz-card-info">
