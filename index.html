@@ -1313,8 +1313,11 @@ function wizardStep1() {
   wizardSubject = null; wizardUnit = null;
   let filteredSubjects = Object.keys(subjects).filter(sid => allQuestions.some(q => q.subject === sid));
   if (wizardOposicion && wizardOposicion !== 'all') {
-    const sids = new Set(getSubjectsForOposicion(wizardOposicion).map(s => s.id));
-    filteredSubjects = filteredSubjects.filter(sid => sids.has(sid));
+    // Filtrar asignaturas usando las oposiciones de cada pregunta
+    const sidsConPreguntas = new Set(
+      getQuestionsForOposicion(wizardOposicion).map(q => q.subject)
+    );
+    filteredSubjects = filteredSubjects.filter(sid => sidsConPreguntas.has(sid));
   }
   const opLabel = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).name : 'Todas las oposiciones';
   const opColor = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).color : 'var(--accent)';
