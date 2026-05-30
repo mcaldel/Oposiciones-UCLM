@@ -1089,8 +1089,7 @@ function getQuestionsForOposicion(opId) {
 function getActiveQuestions() {
   let qs = [...allQuestions];
   if (currentOposicionFilter !== 'all') {
-    const sids = new Set(getSubjectsForOposicion(currentOposicionFilter).map(s => s.id));
-    qs = qs.filter(q => sids.has(q.subject));
+    qs = getQuestionsForOposicion(currentOposicionFilter);
   }
   if (currentSubjectFilter !== 'all') qs = qs.filter(q => q.subject === currentSubjectFilter);
   if (currentUnitFilter !== 'all') qs = qs.filter(q => q.unit === currentUnitFilter);
