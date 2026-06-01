@@ -11,44 +11,6 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>EstudioTest – Portable</title>
-
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAza4dzi5lj17OcDIaLthBDX5jGXZtm6GM",
-    authDomain: "oposiciones-uclm.firebaseapp.com",
-    projectId: "oposiciones-uclm",
-    storageBucket: "oposiciones-uclm.firebasestorage.app",
-    messagingSenderId: "481875726041",
-    appId: "1:481875726041:web:d385a0854997003c2878c8"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  // Hacemos auth y db accesibles desde el resto del código
-  window._fbAuth = auth;
-  window._fbDb = db;
-  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp };
-
-  // Escuchar cambios de sesión Firebase
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      window._fbUser = user;
-      // Si la app ya está lista, actualizar el chip de usuario
-      if (typeof renderUserChip === 'function') renderUserChip();
-      // Cargar preguntas compartidas en tiempo real
-      if (typeof listenSharedQuestions === 'function') listenSharedQuestions();
-    } else {
-      window._fbUser = null;
-    }
-  });
-</script>
 <script id="app-data" type="application/json">
 {"customQuestions":[],"failedIds":[],"seenIds":[],"subjects":{},"oposiciones":{"administrativo":{"id":"administrativo","name":"Administrativo","icon":"🏛️","color":"#7f77dd"},"auxiliar":{"id":"auxiliar","name":"Auxiliar Administrativo","icon":"📋","color":"#1d9e75"},"gestor":{"id":"gestor","name":"Gestor de Servicios","icon":"⚙️","color":"#ba7517"}}}
 </script>
@@ -298,11 +260,11 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 100px; }
 
-  .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 400; background: var(--surface); border-top: 1px solid var(--border); padding: 0.5rem 0 env(safe-area-inset-bottom, 0.5rem); justify-content: space-around; align-items: center; }
-  .bnav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; background: transparent; border: none; color: var(--muted); font-family: 'DM Sans', -apple-system, 'Helvetica Neue', system-ui, sans-serif; font-size: 10px; font-weight: 500; padding: 6px 10px; border-radius: 10px; cursor: pointer; transition: color 0.15s; min-width: 54px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 200; background: var(--surface); border-top: 1px solid var(--border); padding: 0.5rem 0 env(safe-area-inset-bottom, 0.5rem); justify-content: space-around; align-items: center; }
+  .bnav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; background: transparent; border: none; color: var(--muted); font-family: 'DM Sans', -apple-system, 'Helvetica Neue', system-ui, sans-serif; font-size: 10px; font-weight: 500; padding: 6px 10px; border-radius: 10px; cursor: pointer; transition: color 0.15s; min-width: 54px; }
   .bnav-btn .bnav-icon { font-size: 19px; line-height: 1; }
   .bnav-btn.active { color: var(--accent-light); }
-  .bnav-btn.save-btn { display: none !important; }
+  .bnav-btn.save-btn { color: #5dcaa5; }
   .bnav-btn:active { opacity: 0.7; }
 
   .sidebar-overlay { display: none; position: fixed; inset: 0; z-index: 150; background: rgba(0,0,0,0.55); }
@@ -415,30 +377,6 @@
   @media (max-width: 640px) { .subject-quick-grid { grid-template-columns: 1fr; } }
 
   /* ── LOGIN / SESIÓN ── */
-  /* ── TEMARIO ── */
-  .temario-opos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 2rem; }
-  .temario-opos-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 1.25rem 1.5rem; cursor: pointer; transition: border-color 0.18s, background 0.18s; }
-  .temario-opos-card:hover { border-color: var(--accent); background: var(--accent-bg); }
-  .temario-opos-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-  .temario-opos-name { font-size: 1rem; font-weight: 600; color: var(--text); }
-  .temario-opos-count { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  .temario-back { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; margin-bottom: 1.25rem; padding: 6px 0; }
-  .temario-back:hover { color: var(--text); }
-  .temario-tema-list { display: flex; flex-direction: column; gap: 10px; }
-  .temario-tema-card { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; cursor: pointer; transition: border-color 0.18s; text-decoration: none; }
-  .temario-tema-card:hover { border-color: var(--accent); }
-  .temario-tema-num { font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-bg); border-radius: 6px; padding: 3px 8px; min-width: 54px; text-align: center; }
-  .temario-tema-title { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
-  .temario-tema-arrow { color: var(--muted); font-size: 16px; }
-  .temario-empty { color: var(--muted); font-size: 14px; text-align: center; padding: 3rem 0; }
-  .temario-admin-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); font-size: 12px; padding: 6px 14px; border-radius: 8px; cursor: pointer; margin-bottom: 1.25rem; }
-  .temario-admin-btn:hover { color: var(--text); border-color: var(--accent); }
-  .temario-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.5rem; display: none; }
-  .temario-form.open { display: block; }
-  .temario-form-title { font-size: 14px; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
-  .temario-form input, .temario-form select { width: 100%; padding: 9px 12px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 13px; font-family: inherit; box-sizing: border-box; margin-bottom: 10px; }
-  .temario-form input:focus, .temario-form select:focus { outline: none; border-color: var(--accent); }
-
   .login-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: var(--bg); align-items: center; justify-content: center; flex-direction: column; }
   .login-overlay.open { display: flex; }
   .login-box { background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; padding: 2.5rem 2rem; max-width: 380px; width: 92%; box-shadow: 0 32px 80px rgba(0,0,0,0.6); }
@@ -516,9 +454,8 @@ if ('serviceWorker' in navigator) {
     <button class="pill" id="pill-review" onclick="navTo('review')">📖 Repasar</button>
     <button class="pill" id="pill-failed" onclick="navTo('failed')">Falladas <span id="failed-count-nav"></span></button>
     <button class="pill" id="pill-add" onclick="navTo('add')">+ Añadir</button>
-    <button class="pill" id="pill-temario" onclick="navTo('temario')">📄 Temario</button>
     <button class="pill" id="pill-admin" onclick="navTo('admin')">Administrar</button>
-
+    <button class="pill" id="pill-save" onclick="saveToFile()" style="border-color:rgba(29,158,117,0.7);color:rgb(93,202,165);">💾 Guardar</button>
   </div>
 </div>
 
@@ -586,16 +523,15 @@ if ('serviceWorker' in navigator) {
   <button class="bnav-btn" id="bnav-review" onclick="navTo('review')">
     <span class="bnav-icon">📖</span>Repasar
   </button>
-  <button class="bnav-btn" id="bnav-temario" onclick="navTo('temario')">
-    <span class="bnav-icon">📄</span>Temario
-  </button>
   <button class="bnav-btn" id="bnav-failed" onclick="navTo('failed')">
     <span class="bnav-icon">⚑</span>Falladas<span id="failed-count-bnav"></span>
   </button>
   <button class="bnav-btn" id="bnav-add" onclick="navTo('add')">
     <span class="bnav-icon">+</span>Añadir
   </button>
-
+  <button class="bnav-btn save-btn" onclick="saveToFile()">
+    <span class="bnav-icon">💾</span>Guardar
+  </button>
 </nav>
 
 <script>
@@ -667,141 +603,101 @@ function saveSession(session) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
-/* ════════════════════════════════════════════════════════
-   LOGIN — Firebase Authentication
-   ════════════════════════════════════════════════════════ */
-
+/* ── Renderizado del login overlay ── */
 function showLoginScreen() {
   document.getElementById('login-overlay').classList.add('open');
-  renderFirebaseLoginForm();
+  const saved = loadSession();
+  if (saved) {
+    renderLoginForm(saved);   // ya existe perfil → pedir contraseña
+  } else {
+    renderRegisterForm();     // primera vez → crear perfil
+  }
 }
 
-function renderFirebaseLoginForm(mode) {
-  // mode: 'login' (default) o 'register'
-  mode = mode || 'login';
-  const isReg = mode === 'register';
+function renderRegisterForm() {
   document.getElementById('login-box-inner').innerHTML = `
     <div class="login-logo">Estudio<span>Test</span></div>
-    <div class="login-sub">${isReg ? 'Crea tu cuenta para compartir preguntas' : 'Inicia sesión para continuar'}</div>
-    ${isReg ? `<div class="login-field">
+    <div class="login-sub">Crea tu perfil para guardar tu progreso</div>
+    <div class="login-field">
       <label>Tu nombre</label>
-      <input id="fb-name" type="text" placeholder="Ej: María García" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('fb-invite').focus()">
+      <input id="reg-name" type="text" placeholder="Ej: María García" maxlength="30"
+             autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('reg-pass').focus()">
     </div>
     <div class="login-field">
-      <label>Código de invitación</label>
-      <input id="fb-invite" type="text" placeholder="Escribe el código que te han dado" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('fb-email').focus()">
-    </div>` : ''}
-    <div class="login-field">
-      <label>Correo electrónico</label>
-      <input id="fb-email" type="email" placeholder="tu@correo.com" autocomplete="email" onkeydown="if(event.key==='Enter')document.getElementById('fb-pass').focus()">
+      <label>Contraseña</label>
+      <input id="reg-pass" type="password" placeholder="Mínimo 4 caracteres"
+             autocomplete="new-password" onkeydown="if(event.key==='Enter')document.getElementById('reg-pass2').focus()">
     </div>
     <div class="login-field">
-      <label>Contraseña ${isReg ? '(mínimo 6 caracteres)' : ''}</label>
-      <input id="fb-pass" type="password" placeholder="Tu contraseña" autocomplete="${isReg ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')${isReg ? 'doFirebaseRegister()' : 'doFirebaseLogin()'}">
+      <label>Confirmar contraseña</label>
+      <input id="reg-pass2" type="password" placeholder="Repite la contraseña"
+             autocomplete="new-password" onkeydown="if(event.key==='Enter')doRegister()">
     </div>
     <div class="login-error" id="login-error"></div>
-    <button class="login-btn" onclick="${isReg ? 'doFirebaseRegister()' : 'doFirebaseLogin()'}">
-      ${isReg ? 'Crear cuenta' : 'Entrar'}
-    </button>
-    <button class="login-link" onclick="renderFirebaseLoginForm('${isReg ? 'login' : 'register'}')">
-      ${isReg ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-    </button>
+    <button class="login-btn" onclick="doRegister()">Crear perfil</button>
   `;
-  setTimeout(() => {
-    const el = document.getElementById(isReg ? 'fb-name' : 'fb-email');
-    if (el) el.focus();
-  }, 50);
+  setTimeout(() => { const el = document.getElementById('reg-name'); if(el) el.focus(); }, 50);
 }
 
-async function doFirebaseRegister() {
-  const name  = (document.getElementById('fb-name')  ? document.getElementById('fb-name').value.trim() : '');
-  const email = (document.getElementById('fb-email').value || '').trim();
-  const pass  = (document.getElementById('fb-pass').value  || '');
+function renderLoginForm(saved) {
+  const color = saved.color || '#7f77dd';
+  document.getElementById('login-box-inner').innerHTML = `
+    <div class="login-avatar" style="background:${color}20;color:${color}">
+      ${escHtml(saved.name.charAt(0).toUpperCase())}
+    </div>
+    <div class="login-welcome-name">${escHtml(saved.name)}</div>
+    <div class="login-welcome-sub">Introduce tu contraseña para continuar</div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input id="login-pass" type="password" placeholder="Tu contraseña"
+             autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <button class="login-link" onclick="confirmResetProfile()">¿No eres tú? Resetear perfil</button>
+  `;
+  setTimeout(() => { const el = document.getElementById('login-pass'); if(el) el.focus(); }, 50);
+}
+
+function doRegister() {
+  const name  = (document.getElementById('reg-name').value  || '').trim();
+  const pass  = (document.getElementById('reg-pass').value  || '');
+  const pass2 = (document.getElementById('reg-pass2').value || '');
   const err   = document.getElementById('login-error');
-
-  const invite = (document.getElementById('fb-invite') ? document.getElementById('fb-invite').value.trim() : '');
-  if (!name)                    { err.textContent = 'Escribe tu nombre.'; return; }
-  if (invite !== 'Opos-UCLM')  { err.textContent = 'Código de invitación incorrecto.'; return; }
-  if (!email)                   { err.textContent = 'Escribe tu correo electrónico.'; return; }
-  if (pass.length < 6)          { err.textContent = 'La contraseña debe tener al menos 6 caracteres.'; return; }
-  err.textContent = 'Creando cuenta...';
-
-  try {
-    const { createUserWithEmailAndPassword } = window._fbFns;
-    const userCredential = await createUserWithEmailAndPassword(window._fbAuth, email, pass);
-    const fbUser = userCredential.user;
-    // Guardar nombre en localStorage asociado al uid
-    localStorage.setItem('et_name_' + fbUser.uid, name);
-    err.textContent = '';
-    afterFirebaseLogin(fbUser, name);
-  } catch(e) {
-    err.textContent = firebaseErrorMsg(e.code);
-  }
-}
-
-async function doFirebaseLogin() {
-  const email = (document.getElementById('fb-email').value || '').trim();
-  const pass  = (document.getElementById('fb-pass').value  || '');
-  const err   = document.getElementById('login-error');
-
-  if (!email) { err.textContent = 'Escribe tu correo electrónico.'; return; }
-  if (!pass)  { err.textContent = 'Escribe tu contraseña.'; return; }
-  err.textContent = 'Entrando...';
-
-  try {
-    const { signInWithEmailAndPassword } = window._fbFns;
-    const userCredential = await signInWithEmailAndPassword(window._fbAuth, email, pass);
-    const fbUser = userCredential.user;
-    const name = localStorage.getItem('et_name_' + fbUser.uid) || fbUser.email.split('@')[0];
-    err.textContent = '';
-    afterFirebaseLogin(fbUser, name);
-  } catch(e) {
-    err.textContent = firebaseErrorMsg(e.code);
-  }
-}
-
-function afterFirebaseLogin(fbUser, name) {
-  window._fbUser = fbUser;
-  const color = getAvatarColor(name);
-  // Construir sesión compatible con el resto de la app
+  if (!name)          { err.textContent = 'Escribe tu nombre.'; return; }
+  if (pass.length < 4){ err.textContent = 'La contraseña debe tener al menos 4 caracteres.'; return; }
+  if (pass !== pass2) { err.textContent = 'Las contraseñas no coinciden.'; return; }
+  err.textContent = '';
   const session = {
-    id: fbUser.uid,
-    name: name,
-    email: fbUser.email,
-    color: color,
-    data: loadLocalData(fbUser.uid)
+    name,
+    passHash: simpleHash(pass),
+    color: getAvatarColor(name),
+    data: { customQuestions: [], failedIds: [], seenIds: [], subjects: copyObj(BASE_SUBJECTS), oposiciones: copyObj(BASE_OPOSICIONES) }
   };
+  saveSession(session);
   startSession(session);
 }
 
-function loadLocalData(uid) {
-  try {
-    const raw = localStorage.getItem('et_data_' + uid);
-    if (raw) return JSON.parse(raw);
-  } catch(e) {}
-  return { customQuestions: [], failedIds: [], seenIds: [], subjects: copyObj(BASE_SUBJECTS), oposiciones: copyObj(BASE_OPOSICIONES) };
+function doLogin() {
+  const saved = loadSession();
+  if (!saved) { showLoginScreen(); return; }
+  const pass = (document.getElementById('login-pass').value || '');
+  const err  = document.getElementById('login-error');
+  if (simpleHash(pass) !== saved.passHash) {
+    err.textContent = 'Contraseña incorrecta.';
+    document.getElementById('login-pass').value = '';
+    document.getElementById('login-pass').focus();
+    return;
+  }
+  err.textContent = '';
+  startSession(saved);
 }
 
-function firebaseErrorMsg(code) {
-  const msgs = {
-    'auth/email-already-in-use':    'Ya existe una cuenta con ese correo.',
-    'auth/invalid-email':           'El correo no es válido.',
-    'auth/weak-password':           'La contraseña es demasiado débil.',
-    'auth/user-not-found':          'No existe cuenta con ese correo.',
-    'auth/wrong-password':          'Contraseña incorrecta.',
-    'auth/invalid-credential':      'Correo o contraseña incorrectos.',
-    'auth/too-many-requests':       'Demasiados intentos. Espera un momento.',
-    'auth/network-request-failed':  'Error de conexión. Comprueba tu internet.',
-  };
-  return msgs[code] || 'Error: ' + code;
-}
-
-async function doLogout() {
-  if (!confirm('¿Cerrar sesión?')) return;
-  try { await window._fbFns.signOut(window._fbAuth); } catch(e) {}
+function confirmResetProfile() {
+  if (!confirm('⚠️ Esto borrará tu perfil y TODO tu progreso guardado en este dispositivo.\n\n¿Seguro que quieres continuar?')) return;
+  localStorage.removeItem(SESSION_KEY);
   currentUser = null;
-  window._fbUser = null;
-  showLoginScreen();
+  renderRegisterForm();
 }
 
 function startSession(session) {
@@ -810,111 +706,26 @@ function startSession(session) {
   renderUserChip();
   loadData();
   buildSidebar();
-  listenSharedQuestions();
-  listenTemario();
   showHome();
 }
 
 function renderUserChip() {
+  // Chip informativo (sin botón de logout) en la cabecera
   const wrap = document.getElementById('user-chip-wrap');
   if (!wrap || !currentUser) return;
   const c = currentUser.color || '#7f77dd';
-  wrap.innerHTML = `<div class="user-chip" title="${escHtml(currentUser.name)}" onclick="doLogout()" style="cursor:pointer" title="Cerrar sesión">
+  wrap.innerHTML = `<div class="user-chip" title="${escHtml(currentUser.name)}">
     <div class="user-chip-avatar" style="background:${c}20;color:${c}">${escHtml(currentUser.name.charAt(0).toUpperCase())}</div>
     <span class="user-chip-name">${escHtml(currentUser.name)}</span>
-    <span style="font-size:10px;color:var(--muted);margin-left:2px">↩</span>
   </div>`;
 }
 
 function tryAutoLogin() {
-  // Firebase gestiona la sesión automáticamente con onAuthStateChanged
-  // Intentar restaurar desde localStorage como fallback rápido
   const saved = loadSession();
-  if (saved && saved.id && window._fbUser) {
-    startSession(saved);
-    return true;
-  }
-  return false;
-}
-
-/* ════════════════════════════════════════════════════════
-   PREGUNTAS COMPARTIDAS — Firestore
-   ════════════════════════════════════════════════════════ */
-
-let _sharedUnsubscribe = null;
-
-function listenSharedQuestions() {
-  if (!window._fbDb || !window._fbFns) return;
-  if (_sharedUnsubscribe) { _sharedUnsubscribe(); _sharedUnsubscribe = null; }
-
-  const { collection, onSnapshot, query, orderBy } = window._fbFns;
-  const q = query(collection(window._fbDb, 'sharedQuestions'), orderBy('createdAt', 'desc'));
-
-  _sharedUnsubscribe = onSnapshot(q, (snapshot) => {
-    // Limpiar preguntas compartidas anteriores de BASE_QUESTIONS
-    // para evitar duplicados al re-escuchar
-    BASE_QUESTIONS = BASE_QUESTIONS.filter(x => !x._shared);
-
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const myUid = currentUser ? currentUser.id : null;
-
-      // Si esta pregunta es del propio usuario, NO añadirla a BASE_QUESTIONS
-      // porque ya está en customQuestions (evita duplicado)
-      if (data.authorId === myUid) return;
-
-      // Importar la asignatura del autor si no existe en mi sesión
-      if (data.subject && data.subject.id && !subjects[data.subject.id]) {
-        subjects[data.subject.id] = data.subject;
-      }
-
-      // Asegurarse de que oposiciones viene de la pregunta
-      const questionOposiciones = (data.question.oposiciones && data.question.oposiciones.length > 0)
-        ? data.question.oposiciones
-        : (data.oposiciones || []);
-
-      console.log('[Firestore] Pregunta recibida:', data.question.q, '| oposiciones:', questionOposiciones);
-
-      const qData = {
-        ...data.question,
-        oposiciones: questionOposiciones,
-        id: 'shared_' + doc.id,
-        _shared: true,
-        _sharedBy: data.authorName
-      };
-      BASE_QUESTIONS.push(qData);
-    });
-
-    // Reconstruir allQuestions
-    if (currentUser) {
-      const skip = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
-      allQuestions = BASE_QUESTIONS.filter(q => !skip.has(q.id)).concat(customQuestions.filter(q => !q._deleted));
-      buildSidebar();
-      if (currentNav === 'home') showHome();
-    }
-  }, (error) => {
-    console.warn('Error escuchando preguntas compartidas:', error);
-  });
-}
-
-async function shareQuestionToFirestore(question) {
-  if (!window._fbDb || !window._fbUser || !currentUser) return;
-  try {
-    const { collection, addDoc, serverTimestamp } = window._fbFns;
-    // Incluir los datos completos de la asignatura para que otros usuarios
-    // puedan verla aunque no la tengan en su sesión
-    const subjectData = subjects[question.subject] || null;
-    await addDoc(collection(window._fbDb, 'sharedQuestions'), {
-      question: question,
-      subject: subjectData,
-      authorName: currentUser.name,
-      authorId: currentUser.id,
-      createdAt: serverTimestamp()
-    });
-    showSaveToast('✓ Pregunta compartida con todos los usuarios', 'ok');
-  } catch(e) {
-    showSaveToast('Error al compartir: ' + e.message, 'err');
-  }
+  if (!saved) return false;
+  // Si hay sesión guardada, auto-login sin pedir contraseña
+  startSession(saved);
+  return true;
 }
 
 
@@ -923,7 +734,7 @@ let customQuestions = [];
 let failedIds = new Set();
 let seenIds = new Set();
 let subjects = {};
-let oposiciones = copyObj(BASE_OPOSICIONES);
+let oposiciones = {};
 let currentNav = 'home';
 let currentSubjectFilter = 'all';
 let currentUnitFilter = 'all';
@@ -948,6 +759,13 @@ function loadData() {
   oposiciones = (d.oposiciones && Object.keys(d.oposiciones).length > 0) ? d.oposiciones : copyObj(BASE_OPOSICIONES);
   var skip = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
   allQuestions = BASE_QUESTIONS.filter(q => !skip.has(q.id)).concat(customQuestions.filter(q => !q._deleted));
+  // Reparar asignaturas sin oposiciones asignadas
+  const defaultOp = Object.keys(oposiciones)[0];
+  Object.values(subjects).forEach(s => {
+    if (!Array.isArray(s.oposiciones) || s.oposiciones.length === 0) {
+      s.oposiciones = defaultOp ? [defaultOp] : [];
+    }
+  });
 }
 
 function saveData() {
@@ -959,21 +777,16 @@ function saveData() {
     subjects,
     oposiciones
   };
-  // Guardar datos localmente usando el uid de Firebase
-  if (currentUser.id) {
-    try {
-      localStorage.setItem('et_data_' + currentUser.id, JSON.stringify(currentUser.data));
-      localStorage.setItem('et_name_' + currentUser.id, currentUser.name);
-    } catch(e) {}
-  } else {
-    saveSession(currentUser);
-  }
-  // También actualizar el elemento app-data embebido
+  // Persist session to localStorage
+  saveSession(currentUser);
+  // Also update HTML embedded data
   try {
     var payload = JSON.stringify({ customQuestions, failedIds: Array.from(failedIds), seenIds: Array.from(seenIds), subjects, oposiciones });
     var dataEl = document.getElementById('app-data');
     if (dataEl) dataEl.textContent = payload;
   } catch(e) {}
+  // Save to server if on localhost (per-user file)
+  saveUserToServer();
 }
 
 async function saveUserToServer() {
@@ -1054,9 +867,8 @@ function getOposicionForSubject(subjectId) {
   const s = subjects[subjectId] || {};
   return (s.oposiciones && s.oposiciones[0]) || s.oposicion || 'auxiliar';
 }
-function getUnitsForSubject(subjectId, opFilter) {
-  let base = opFilter && opFilter !== 'all' ? getQuestionsForOposicion(opFilter) : allQuestions;
-  const qs = subjectId === 'all' ? base : base.filter(q => q.subject === subjectId);
+function getUnitsForSubject(subjectId) {
+  const qs = subjectId === 'all' ? allQuestions : allQuestions.filter(q => q.subject === subjectId);
   const map = {};
   qs.forEach(q => { if (!map[q.unit]) map[q.unit] = { unit: q.unit, name: q.unitName, subject: q.subject, count: 0 }; map[q.unit].count++; });
   return Object.values(map).sort((a, b) => {
@@ -1071,26 +883,24 @@ function getUnitsForSubject(subjectId, opFilter) {
   });
 }
 function getSubjectsForOposicion(opId) {
-  return Object.values(subjects).filter(s => (Array.isArray(s.oposiciones) ? s.oposiciones : [s.oposicion || 'auxiliar']).includes(opId));
-}
-function getQuestionsForOposicion(opId) {
-  if (opId === 'all') return allQuestions;
-  return allQuestions.filter(q => {
-    // Si la pregunta tiene oposiciones propias, usarlas
-    if (q.oposiciones && q.oposiciones.length > 0) {
-      return q.oposiciones.includes(opId);
-    }
-    // Si no, usar las de la asignatura (retrocompatibilidad)
-    const s = subjects[q.subject];
-    if (!s) return false;
-    const ops = Array.isArray(s.oposiciones) ? s.oposiciones : [s.oposicion || 'auxiliar'];
+  return Object.values(subjects).filter(s => {
+    const ops = Array.isArray(s.oposiciones) ? s.oposiciones
+              : s.oposicion ? [s.oposicion]
+              : [];
+    // Asignatura sin oposiciones asignadas → visible en todas
+    if (ops.length === 0) return true;
     return ops.includes(opId);
   });
+}
+function getQuestionsForOposicion(opId) {
+  const sids = new Set(getSubjectsForOposicion(opId).map(s => s.id));
+  return allQuestions.filter(q => sids.has(q.subject));
 }
 function getActiveQuestions() {
   let qs = [...allQuestions];
   if (currentOposicionFilter !== 'all') {
-    qs = getQuestionsForOposicion(currentOposicionFilter);
+    const sids = new Set(getSubjectsForOposicion(currentOposicionFilter).map(s => s.id));
+    qs = qs.filter(q => sids.has(q.subject));
   }
   if (currentSubjectFilter !== 'all') qs = qs.filter(q => q.subject === currentSubjectFilter);
   if (currentUnitFilter !== 'all') qs = qs.filter(q => q.unit === currentUnitFilter);
@@ -1133,7 +943,6 @@ function navTo(view) {
   else if (view === 'failed') showFailed();
   else if (view === 'add') showAdd();
   else if (view === 'admin') showAdmin();
-  else if (view === 'temario') showTemario();
 }
 
 function setActivePill(view) {
@@ -1141,7 +950,7 @@ function setActivePill(view) {
   const p = document.getElementById('pill-' + view);
   if (p) p.classList.add('active');
   document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
-  const bmap = { home: 'bnav-home', review: 'bnav-review', temario: 'bnav-temario', failed: 'bnav-failed', add: 'bnav-add' };
+  const bmap = { home: 'bnav-home', review: 'bnav-review', failed: 'bnav-failed', add: 'bnav-add' };
   const bId = bmap[view];
   if (bId) { const bb = document.getElementById(bId); if (bb) bb.classList.add('active'); }
 }
@@ -1256,8 +1065,7 @@ function wizardStep0(preselect) {
   // If only one oposicion has questions, skip directly
   const opWithQ = opIds.filter(oid => getQuestionsForOposicion(oid).length > 0);
   if (preselect) { wizardOposicion = preselect; currentOposicionFilter = preselect; wizardStep1(); return; }
-  if (opWithQ.length === 0) {
-    // No questions yet — go straight to add form with a message
+  if (allQuestions.length === 0) {
     navTo('add');
     showSaveToast('Añade tu primera pregunta para empezar', 'warn');
     return;
@@ -1267,7 +1075,8 @@ function wizardStep0(preselect) {
   const cards = Object.values(oposiciones).map(op => {
     const opQs = getQuestionsForOposicion(op.id);
     const fCount = opQs.filter(q => failedIds.has(q.id)).length;
-    const subjectCount = new Set(opQs.map(q => q.subject)).size;
+    const sids = new Set(getSubjectsForOposicion(op.id).map(s => s.id));
+    const subjectCount = [...sids].filter(sid => allQuestions.some(q => q.subject === sid)).length;
     return `<div class="op-card" onclick="selectOposicion('${op.id}')" style="border-left:3px solid ${op.color}">
       <div class="op-card-icon">${op.icon}</div>
       <div class="op-card-info">
@@ -1311,26 +1120,22 @@ function selectOposicion(opId) {
 /* ── WIZARD — Paso 1: Asignatura ── */
 function wizardStep1() {
   wizardSubject = null; wizardUnit = null;
+  // Asignaturas que tienen al menos una pregunta
   let filteredSubjects = Object.keys(subjects).filter(sid => allQuestions.some(q => q.subject === sid));
+  // También incluir asignaturas de preguntas cuyo subject no está en subjects (edge case)
+  allQuestions.forEach(q => { if (!subjects[q.subject]) filteredSubjects.push(q.subject); });
+  filteredSubjects = [...new Set(filteredSubjects)];
   if (wizardOposicion && wizardOposicion !== 'all') {
-    // Filtrar asignaturas usando las oposiciones de cada pregunta
-    const sidsConPreguntas = new Set(
-      getQuestionsForOposicion(wizardOposicion).map(q => q.subject)
-    );
-    filteredSubjects = filteredSubjects.filter(sid => sidsConPreguntas.has(sid));
+    const sids = new Set(getSubjectsForOposicion(wizardOposicion).map(s => s.id));
+    filteredSubjects = filteredSubjects.filter(sid => sids.has(sid));
   }
   const opLabel = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).name : 'Todas las oposiciones';
   const opColor = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).color : 'var(--accent)';
 
-  // Preguntas filtradas por oposición actual
-  const qsDeEstaOp = wizardOposicion && wizardOposicion !== 'all'
-    ? getQuestionsForOposicion(wizardOposicion)
-    : allQuestions;
-
   const cards = filteredSubjects.map(sid => {
     const s = subjects[sid];
-    const count = qsDeEstaOp.filter(q => q.subject === sid).length;
-    const fCount = Array.from(failedIds).filter(id => { const q = qsDeEstaOp.find(x=>x.id===id); return q && q.subject===sid; }).length;
+    const count = allQuestions.filter(q => q.subject === sid).length;
+    const fCount = Array.from(failedIds).filter(id => { const q = allQuestions.find(x=>x.id===id); return q && q.subject===sid; }).length;
     return `<div class="wz-card" onclick="wizardStep2('${sid}')">
       <div class="wz-card-dot" style="background:${s.color}"></div>
       <div class="wz-card-info">
@@ -1342,7 +1147,7 @@ function wizardStep1() {
     </div>`;
   }).join('');
 
-  const totalOp = filteredSubjects.reduce((acc, sid) => acc + qsDeEstaOp.filter(q => q.subject === sid).length, 0);
+  const totalOp = filteredSubjects.reduce((acc, sid) => acc + allQuestions.filter(q => q.subject === sid).length, 0);
 
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
@@ -1378,14 +1183,13 @@ function wizardSelectAll() {
 function wizardStep2(subjectId) {
   wizardSubject = subjectId; wizardUnit = null;
   const s = subjects[subjectId];
-  const units = getUnitsForSubject(subjectId, wizardOposicion);
-  const qsDeEstaOp = wizardOposicion && wizardOposicion !== 'all' ? getQuestionsForOposicion(wizardOposicion) : allQuestions;
-  const totalSubject = qsDeEstaOp.filter(q => q.subject === subjectId).length;
+  const units = getUnitsForSubject(subjectId);
+  const totalSubject = allQuestions.filter(q => q.subject === subjectId).length;
   const opLabel = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).name : 'Todas';
   const opColor = wizardOposicion && wizardOposicion !== 'all' ? (oposiciones[wizardOposicion] || {}).color : 'var(--accent)';
 
   const unitCards = units.map(u => {
-    const fCount = Array.from(failedIds).filter(id => { const q=qsDeEstaOp.find(x=>x.id===id); return q && q.unit===u.unit; }).length;
+    const fCount = Array.from(failedIds).filter(id => { const q=allQuestions.find(x=>x.id===id); return q && q.unit===u.unit; }).length;
     return `<div class="wz-card" onclick="wizardSelectUnit('${u.unit}','${u.name.replace(/'/g,"\\'").replace(/"/g,"&quot;")}')">
       <div class="wz-card-dot" style="background:${s.color}"></div>
       <div class="wz-card-info">
@@ -1757,8 +1561,7 @@ function showAdd() {
 
   // Helpers: oposiciones checkboxes HTML
   function opChecksHtml(prefix, selectedOps) {
-    const ops = Object.keys(oposiciones).length > 0 ? oposiciones : BASE_OPOSICIONES;
-    return Object.values(ops).map(op => {
+    return Object.values(oposiciones).map(op => {
       const checked = selectedOps && selectedOps.includes(op.id) ? 'checked' : '';
       return `<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)'">
         <input type="checkbox" name="${prefix}_op" value="${op.id}" ${checked} style="width:15px;height:15px;accent-color:var(--accent)">
@@ -1779,11 +1582,11 @@ function showAdd() {
       <div class="add-form">
 
         <div class="form-group">
-          <label class="form-label">📌 Oposición</label>
+          <label class="form-label">📌 Oposiciones donde aparece esta pregunta</label>
           <div id="add-op-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
-            ${opChecksHtml('add', [])}
+            ${opChecksHtml('add', Object.keys(oposiciones).slice(0,1))}
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:5px">Marca la oposición a la que pertenece esta pregunta.</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:5px">Marca todas las oposiciones en las que se incluye este temario.</div>
         </div>
 
         <div class="form-group" style="margin-top:1.25rem">
@@ -1964,7 +1767,8 @@ function onUnitChangeAdd() {
 function submitAdd() {
   // ── Oposiciones ──
   const opChecks = Array.from(document.querySelectorAll('#add-op-checks input:checked')).map(c => c.value);
-  if (opChecks.length === 0) { alert('Selecciona al menos una oposición.'); return; }
+  // Si no se marcó ninguna oposición, asignar la primera disponible
+  const resolvedOpChecks = opChecks.length > 0 ? opChecks : [Object.keys(oposiciones)[0]];
 
   // ── Asignatura ──
   const subjectSel = document.getElementById('add-subject');
@@ -1976,10 +1780,16 @@ function submitAdd() {
     if (!subjectName) { alert('Escribe el nombre de la nueva asignatura.'); return; }
     const color = (document.getElementById('add-subject-color').value || '#a7a9be');
     subjectId = 'subj_' + Date.now();
-    subjects[subjectId] = { id: subjectId, name: subjectName, color, oposiciones: [] };
+    subjects[subjectId] = { id: subjectId, name: subjectName, color, oposiciones: resolvedOpChecks };
   } else {
-    // NO sobreescribir las oposiciones de la asignatura existente al añadir una pregunta.
-    // Las oposiciones de la asignatura se gestionan desde "Administrar".
+    // Actualizar oposiciones de la asignatura existente
+    if (subjects[subjectId]) {
+      subjects[subjectId].oposiciones = opChecks.length > 0
+        ? opChecks
+        : (subjects[subjectId].oposiciones && subjects[subjectId].oposiciones.length > 0
+            ? subjects[subjectId].oposiciones
+            : [Object.keys(oposiciones)[0]]);
+    }
   }
 
   // ── Unidad/Tema ──
@@ -2005,24 +1815,20 @@ function submitAdd() {
   if (opts.some(o=>!o)) { alert('Rellena las cuatro opciones de respuesta.'); return; }
   if (!exp)             { alert('Escribe la explicación de la respuesta correcta.'); return; }
 
-  const newQ = { id: 'custom_' + Date.now(), subject: subjectId, unit, unitName, q, opts, correct, exp, oposiciones: opChecks, custom: true };
+  const newQ = { id: 'custom_' + Date.now(), subject: subjectId, unit, unitName, q, opts, correct, exp, custom: true };
   customQuestions.push(newQ);
   allQuestions = BASE_QUESTIONS.slice().concat(customQuestions.filter(cq => !cq._deleted));
   saveData(); saveQuestionToJSON(newQ); buildSidebar();
 
-  // Compartir automáticamente con todos los usuarios
-  shareQuestionToFirestore(newQ);
-
   const toast = document.getElementById('add-toast');
   if (toast) {
-    toast.innerHTML = '✓ Pregunta guardada y compartida con todos';
     toast.style.display = 'block';
     setTimeout(() => {
       toast.style.display = 'none';
-      toast.innerHTML = '✓ Pregunta añadida correctamente';
+      // Reset only question fields, keep subject/unit selection
       ['add-q','add-exp'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
       [0,1,2,3].forEach(i => { const el=document.getElementById('add-opt'+i); if(el) el.value=''; });
-    }, 3000);
+    }, 1800);
   }
 }
 
@@ -2054,10 +1860,7 @@ function showAdmin() {
                 <td style="font-size:12px;color:${getSubjectColor(q.subject)}">${getSubjectName(q.subject)}<br><span style="color:var(--muted)">${q.unitName}</span></td>
                 <td><div class="admin-q-text">${q.q}</div></td>
                 <td style="font-size:11px;line-height:1.6">${
-                  (q.oposiciones && q.oposiciones.length > 0
-                    ? q.oposiciones
-                    : []
-                  ).map(opId => {
+                  ((subjects[q.subject]||{}).oposiciones||[]).map(opId => {
                     const op = oposiciones[opId]; return op ? `<span title="${op.name}" style="margin-right:3px">${op.icon}</span>` : '';
                   }).join('')
                   || '<span style="color:var(--muted);font-size:10px">—</span>'
@@ -2107,12 +1910,10 @@ function renderEditPanel(id) {
     .map(u => `<option value="${u.unit}" data-name="${escHtml(u.name)}" ${q.unit===u.unit?'selected':''}>${u.name}</option>`).join('')
     + `<option value="__new__">➕ Nuevo tema / artículo…</option>`;
 
-  // Oposiciones de la PREGUNTA individual (no de la asignatura)
-  const questionOps = q.oposiciones && q.oposiciones.length > 0
-    ? q.oposiciones
-    : (subjects[q.subject] || {}).oposiciones || [];
+  // Oposiciones actuales de la asignatura
+  const subjectOps = (subjects[q.subject] || {}).oposiciones || [];
   const opChecksHtml = Object.values(oposiciones).map(op => {
-    const checked = questionOps.includes(op.id) ? 'checked' : '';
+    const checked = subjectOps.includes(op.id) ? 'checked' : '';
     return `<label style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px">
       <input type="checkbox" name="edit_op" value="${op.id}" ${checked} style="width:15px;height:15px;accent-color:var(--accent)">
       <span>${op.icon} ${op.name}</span>
@@ -2127,7 +1928,7 @@ function renderEditPanel(id) {
       <div class="form-group">
         <label class="form-label">📌 Oposiciones donde aparece</label>
         <div id="edit-op-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${opChecksHtml}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">Cambia aquí en qué oposiciones aparece <strong>esta pregunta</strong> (no afecta al resto).</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Cambia aquí en qué oposiciones se incluye esta asignatura.</div>
       </div>
 
       <div class="form-row" style="margin-top:1rem">
@@ -2200,7 +2001,9 @@ function onEditSubjectChange(id) {
 function saveEdit(id) {
   // ── Oposiciones ──
   const editOpChecks = Array.from(document.querySelectorAll('#edit-op-checks input:checked')).map(c => c.value);
-  if (editOpChecks.length === 0) { alert('Selecciona al menos una oposición.'); return; }
+  // Si no se marcó ninguna oposición, conservar las actuales o asignar la primera
+  const resolvedEditOps = editOpChecks.length > 0 ? editOpChecks
+    : ((subjects[document.getElementById('edit-subject').value]||{}).oposiciones || [Object.keys(oposiciones)[0]]);
 
   // ── Asignatura ──
   const newSubject = document.getElementById('edit-subject').value;
@@ -2226,10 +2029,12 @@ function saveEdit(id) {
   const newExp  = (document.getElementById('edit-exp').value || '').trim();
   if (!newQ || newOpts.some(o => !o) || !newExp) { alert('Por favor completa todos los campos.'); return; }
 
-  // ── Oposiciones: se guardan en la pregunta individual ──
+  // ── Actualizar oposiciones de la asignatura ──
+  if (subjects[newSubject]) subjects[newSubject].oposiciones = resolvedEditOps;
+
   const baseIdx   = BASE_QUESTIONS.findIndex(q => q.id === id);
   const customIdx = customQuestions.findIndex(q => q.id === id);
-  const updated   = { id, subject: newSubject, unit: newUnit, unitName: newUnitName, q: newQ, opts: newOpts, correct: newCorrect, exp: newExp, oposiciones: editOpChecks, custom: baseIdx === -1 };
+  const updated   = { id, subject: newSubject, unit: newUnit, unitName: newUnitName, q: newQ, opts: newOpts, correct: newCorrect, exp: newExp, custom: baseIdx === -1 };
   if (baseIdx !== -1) {
     if (customIdx !== -1) customQuestions[customIdx] = { ...updated, override: true };
     else customQuestions.push({ ...updated, override: true });
@@ -2239,81 +2044,15 @@ function saveEdit(id) {
   const overrideIds = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
   allQuestions = BASE_QUESTIONS.filter(q => !overrideIds.has(q.id)).concat(customQuestions.filter(q => !q._deleted));
   saveData(); buildSidebar();
-
-  // Actualizar también en Firestore para que el resto de usuarios vean los cambios
-  updateQuestionInFirestore(updated);
-
   const toast = document.getElementById('edit-toast');
   if (toast) { toast.style.display = 'block'; setTimeout(() => { toast.style.display = 'none'; editingId = null; showAdmin(); }, 1500); }
 }
 
-async function updateQuestionInFirestore(updatedQ) {
-  if (!window._fbDb || !window._fbUser || !currentUser) return;
-  try {
-    const { collection, setDoc, doc, serverTimestamp } = window._fbFns;
-    // Buscar el documento en Firestore que corresponde a esta pregunta
-    const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const snap = await getDocs(collection(window._fbDb, 'sharedQuestions'));
-    let firestoreDocId = null;
-    snap.forEach((document) => {
-      const data = document.data();
-      // Buscar por id original de la pregunta (puede tener prefijo shared_ o ser custom_)
-      const qid = (data.question || {}).id;
-      if (qid === updatedQ.id || 'shared_' + document.id === updatedQ.id) {
-        firestoreDocId = document.id;
-      }
-    });
-    if (firestoreDocId) {
-      const subjectData = subjects[updatedQ.subject] || null;
-      await setDoc(doc(window._fbDb, 'sharedQuestions', firestoreDocId), {
-        question: updatedQ,
-        subject: subjectData,
-        authorName: currentUser.name,
-        authorId: currentUser.id,
-        createdAt: serverTimestamp()
-      });
-    }
-  } catch(e) {
-    console.warn('No se pudo actualizar en Firestore:', e.message);
-  }
-}
-
-async function deleteQuestion(id) {
+function deleteQuestion(id) {
   const q = allQuestions.find(x => x.id === id);
   if (!q) return;
   const label = q.q.length > 60 ? q.q.slice(0, 60) + '…' : q.q;
   if (!confirm('¿Eliminar esta pregunta?\n\n"' + label + '"')) return;
-
-  // Si es una pregunta compartida (viene de Firestore), borrarla también de Firestore
-  if (q._shared && id.startsWith('shared_')) {
-    const firestoreDocId = id.replace('shared_', '');
-    try {
-      const { deleteDoc, doc } = window._fbFns;
-      await deleteDoc(doc(window._fbDb, 'sharedQuestions', firestoreDocId));
-    } catch(e) {
-      showSaveToast('Error al borrar de Firestore: ' + e.message, 'err');
-    }
-  }
-
-  // Si es una pregunta propia (custom), borrarla de Firestore buscando por authorId y question.id
-  if (q.custom && window._fbDb && window._fbUser) {
-    try {
-      const { collection, query, onSnapshot, deleteDoc, doc } = window._fbFns;
-      // Buscar el documento en Firestore que tenga esta pregunta
-      const { getDocs, where } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-      const col = collection(window._fbDb, 'sharedQuestions');
-      const snap = await getDocs(col);
-      snap.forEach(async (document) => {
-        const data = document.data();
-        if (data.question && data.question.id === id && data.authorId === currentUser.id) {
-          await deleteDoc(doc(window._fbDb, 'sharedQuestions', document.id));
-        }
-      });
-    } catch(e) {
-      console.warn('No se pudo borrar de Firestore:', e.message);
-    }
-  }
-
   const baseIdx   = BASE_QUESTIONS.findIndex(x => x.id === id);
   const customIdx = customQuestions.findIndex(x => x.id === id);
   if (customIdx !== -1) customQuestions.splice(customIdx, 1);
@@ -2394,283 +2133,16 @@ function buildSubjectQuickCardsHTML() {
 /* ── INIT ── */
 async function init() {
   var inner = document.getElementById('main-inner');
-  if (inner) inner.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--muted)">Cargando...</div>';
+  if (inner) inner.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--muted)">Cargando preguntas...</div>';
   try {
     var onLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (onLocalhost) await loadQuestionsFromJSON();
-
-    // Esperar a que Firebase resuelva el estado de autenticación
-    // Si en 2 segundos no hay usuario Firebase, mostrar login
-    await new Promise((resolve) => {
-      let resolved = false;
-      const timeout = setTimeout(() => {
-        if (!resolved) { resolved = true; resolve(); }
-      }, 2000);
-
-      // Comprobar si _fbAuth ya está disponible (puede tardar por ser module)
-      const checkAuth = () => {
-        if (window._fbAuth && window._fbFns) {
-          window._fbFns.onAuthStateChanged(window._fbAuth, (fbUser) => {
-            if (!resolved) {
-              resolved = true;
-              clearTimeout(timeout);
-              if (fbUser) {
-                window._fbUser = fbUser;
-                const name = localStorage.getItem('et_name_' + fbUser.uid) || fbUser.email.split('@')[0];
-                afterFirebaseLogin(fbUser, name);
-              } else {
-                showLoginScreen();
-              }
-              resolve();
-            }
-          });
-        } else {
-          setTimeout(checkAuth, 100);
-        }
-      };
-      checkAuth();
-    });
+    // Show login, then after login loadData+showHome happen
+    if (!tryAutoLogin()) {
+      showLoginScreen();
+    }
   } catch(e) {
     document.getElementById('main-inner').innerHTML = '<div style="padding:2rem;color:#f0997b;font-family:sans-serif"><strong>Error al iniciar:</strong><br>' + e.message + '<br><br><small>Prueba a recargar la página.</small></div>';
-  }
-}
-
-/* ════════════════════════════════════════════════════════
-   TEMARIO
-   ════════════════════════════════════════════════════════ */
-
-// Datos del temario — se cargan/guardan en Firestore
-let temarioData = {}; // { oposicionId: [ { num, titulo, url } ] }
-let _temarioUnsubscribe = null;
-let _temarioOposActual = null; // null = pantalla principal
-
-function listenTemario() {
-  if (!window._fbDb || !window._fbFns) return;
-  if (_temarioUnsubscribe) { _temarioUnsubscribe(); _temarioUnsubscribe = null; }
-  const { collection, onSnapshot } = window._fbFns;
-  const q = collection(window._fbDb, 'temario');
-  _temarioUnsubscribe = onSnapshot(q, (snapshot) => {
-    temarioData = {};
-    snapshot.forEach((doc) => {
-      const d = doc.data();
-      if (!temarioData[d.oposicion]) temarioData[d.oposicion] = [];
-      temarioData[d.oposicion].push({ id: doc.id, num: d.num, titulo: d.titulo, url: d.url, oposiciones: d.oposiciones || [d.oposicion] });
-    });
-    // Ordenar por número
-    Object.keys(temarioData).forEach(k => {
-      temarioData[k].sort((a, b) => a.num - b.num);
-    });
-    if (currentNav === 'temario') showTemario(_temarioOposActual);
-  }, (err) => console.warn('Error temario:', err));
-}
-
-function showTemario(oposId) {
-  _temarioOposActual = oposId || null;
-  const isAdmin = currentUser && currentUser.email === 'mcalzadodelgado@gmail.com'; // solo admin puede añadir
-
-  if (!oposId) {
-    // Pantalla principal — lista de oposiciones
-    const cards = Object.values(oposiciones).map(op => {
-      const count = (temarioData[op.id] || []).length;
-      return `<div class="temario-opos-card" onclick="showTemario('${op.id}')">
-        <div class="temario-opos-icon">${op.icon}</div>
-        <div class="temario-opos-name">${op.name}</div>
-        <div class="temario-opos-count">${count} tema${count !== 1 ? 's' : ''}</div>
-      </div>`;
-    }).join('');
-
-    document.getElementById('main-inner').innerHTML = `
-      <div class="home-hero"><h1>📄 Temario</h1></div>
-      <div class="temario-opos-grid">${cards}</div>
-    `;
-  } else {
-    // Pantalla de temas de una oposición
-    const op = oposiciones[oposId];
-    const temas = temarioData[oposId] || [];
-
-    const temasHtml = temas.length > 0
-      ? temas.map(t => `
-        <a class="temario-tema-card" href="${t.url}" target="_blank" rel="noopener">
-          <span class="temario-tema-num">Tema ${t.num}</span>
-          <span class="temario-tema-title">${escHtml(t.titulo)}</span>
-          <span class="temario-tema-arrow">↗</span>
-        </a>`).join('')
-      : `<div class="temario-empty">Aún no hay temas para esta oposición.</div>`;
-
-    const opCheckboxes = Object.values(oposiciones).map(o =>
-      `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px;line-height:1.2">
-        <input type="checkbox" name="tf_op" value="${o.id}" ${o.id === oposId ? 'checked' : ''} style="accent-color:var(--accent);width:12px;height:12px;flex-shrink:0">
-        <span>${o.icon} ${o.name}</span>
-      </label>`
-    ).join('');
-
-    const adminSection = isAdmin ? `
-      <button class="temario-admin-btn" onclick="toggleTemarioForm()">＋ Añadir tema</button>
-      <div class="temario-form" id="temario-form">
-        <div class="temario-form-title">Nuevo tema</div>
-        <div style="margin-bottom:10px">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Oposiciones donde aparece este tema</div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px">${opCheckboxes}</div>
-        </div>
-        <input type="number" id="tf-num" placeholder="Número de tema (ej: 1)" min="1">
-        <input type="text" id="tf-titulo" placeholder="Título del tema (ej: La Constitución Española)">
-        <input type="text" id="tf-url" placeholder="URL del PDF (https://mcaldel.github.io/Oposiciones-UCLM/temario/...)">
-        <div style="display:flex;gap:8px;margin-top:4px">
-          <button class="btn-sec" onclick="toggleTemarioForm()">Cancelar</button>
-          <button class="btn-primary visible" onclick="submitTemaTema()">Guardar tema</button>
-        </div>
-      </div>
-    ` : '';
-
-    // Si admin, intercalar botones de editar/eliminar tras cada tarjeta
-    let temasConDelete = '';
-    if (isAdmin && temas.length > 0) {
-      temas.forEach(t => {
-        temasConDelete += `
-          <a class="temario-tema-card" href="${t.url}" target="_blank" rel="noopener">
-            <span class="temario-tema-num">Tema ${t.num}</span>
-            <span class="temario-tema-title">${escHtml(t.titulo)}</span>
-            <span class="temario-tema-arrow">↗</span>
-          </a>
-          <div style="display:flex;gap:12px;padding-left:4px;margin-top:-4px;margin-bottom:4px">
-            <button onclick="event.stopPropagation();editTema('${t.id}')" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;padding:4px 0">✏️ Editar</button>
-            <button onclick="event.stopPropagation();deleteTema('${t.id}')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;padding:4px 0">🗑 Eliminar</button>
-          </div>
-          <div class="temario-form" id="temario-edit-form-${t.id}">
-            <div class="temario-form-title">Editar tema</div>
-            <div style="margin-bottom:10px">
-              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Oposiciones donde aparece</div>
-              <div style="display:flex;flex-wrap:wrap;gap:8px">
-                ${Object.values(oposiciones).map(o =>
-                  `<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:12px">
-                    <input type="checkbox" name="tfe_op_${t.id}" value="${o.id}" ${(t.oposiciones||[oposId]).includes(o.id) ? 'checked' : ''} style="accent-color:var(--accent);width:12px;height:12px">
-                    <span>${o.icon} ${o.name}</span>
-                  </label>`
-                ).join('')}
-              </div>
-            </div>
-            <input type="number" id="tfe-num-${t.id}" value="${t.num}" placeholder="Número de tema" min="1">
-            <input type="text" id="tfe-titulo-${t.id}" value="${escHtml(t.titulo)}" placeholder="Título del tema">
-            <input type="text" id="tfe-url-${t.id}" value="${escHtml(t.url)}" placeholder="URL del PDF">
-            <div style="display:flex;gap:8px;margin-top:4px">
-              <button class="btn-sec" onclick="document.getElementById('temario-edit-form-${t.id}').classList.remove('open')">Cancelar</button>
-              <button class="btn-primary visible" onclick="saveEditTema('${t.id}', '${oposId}')">Guardar cambios</button>
-            </div>
-          </div>`;
-      });
-    }
-
-    document.getElementById('main-inner').innerHTML = `
-      <div class="temario-back" onclick="showTemario()">← Volver a oposiciones</div>
-      <div class="home-hero" style="margin-bottom:1rem"><h1>${op ? op.icon + ' ' + op.name : ''}</h1></div>
-      ${adminSection}
-      <div class="temario-tema-list">
-        ${isAdmin && temas.length > 0 ? temasConDelete : temasHtml}
-      </div>
-    `;
-  }
-}
-
-function toggleTemarioForm() {
-  const f = document.getElementById('temario-form');
-  if (f) f.classList.toggle('open');
-}
-
-async function submitTemaTema() {
-  const num    = parseInt(document.getElementById('tf-num').value);
-  const titulo = (document.getElementById('tf-titulo').value || '').trim();
-  const url    = (document.getElementById('tf-url').value || '').trim();
-  const opsSeleccionadas = Array.from(document.querySelectorAll('input[name="tf_op"]:checked')).map(c => c.value);
-
-  if (opsSeleccionadas.length === 0) { alert('Selecciona al menos una oposición.'); return; }
-  if (!num || num < 1)               { alert('Escribe el número del tema.'); return; }
-  if (!titulo)                       { alert('Escribe el título del tema.'); return; }
-  if (!url)                          { alert('Pega la URL del PDF.'); return; }
-  if (!url.startsWith('http'))       { alert('La URL debe empezar por https://'); return; }
-
-  try {
-    const { collection, addDoc, serverTimestamp } = window._fbFns;
-    // Guardar un documento por cada oposición seleccionada
-    for (const oposId of opsSeleccionadas) {
-      await addDoc(collection(window._fbDb, 'temario'), {
-        oposicion: oposId,
-        oposiciones: opsSeleccionadas,
-        num,
-        titulo,
-        url,
-        creadoEn: serverTimestamp()
-      });
-    }
-    showSaveToast(`✓ Tema añadido en ${opsSeleccionadas.length} oposición${opsSeleccionadas.length > 1 ? 'es' : ''}`, 'ok');
-    toggleTemarioForm();
-  } catch(e) {
-    alert('Error al guardar: ' + e.message);
-  }
-}
-
-async function deleteTema(docId) {
-  if (!confirm('¿Eliminar este tema?')) return;
-  try {
-    const { deleteDoc, doc } = window._fbFns;
-    await deleteDoc(doc(window._fbDb, 'temario', docId));
-    showSaveToast('Tema eliminado', 'warn');
-  } catch(e) {
-    alert('Error al eliminar: ' + e.message);
-  }
-}
-
-function editTema(docId) {
-  // Cerrar otros formularios de edición abiertos
-  document.querySelectorAll('.temario-form.open').forEach(f => f.classList.remove('open'));
-  const form = document.getElementById('temario-edit-form-' + docId);
-  if (form) form.classList.toggle('open');
-}
-
-async function saveEditTema(docId, oposActual) {
-  const num    = parseInt(document.getElementById('tfe-num-' + docId).value);
-  const titulo = (document.getElementById('tfe-titulo-' + docId).value || '').trim();
-  const url    = (document.getElementById('tfe-url-' + docId).value || '').trim();
-  const opsSeleccionadas = Array.from(document.querySelectorAll(`input[name="tfe_op_${docId}"]:checked`)).map(c => c.value);
-
-  if (opsSeleccionadas.length === 0) { alert('Selecciona al menos una oposición.'); return; }
-  if (!num || num < 1)               { alert('Escribe el número del tema.'); return; }
-  if (!titulo)                       { alert('Escribe el título del tema.'); return; }
-  if (!url)                          { alert('La URL no puede estar vacía.'); return; }
-
-  try {
-    const { collection, addDoc, deleteDoc, doc, serverTimestamp } = window._fbFns;
-    const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-
-    // Buscar todos los documentos de Firestore con el mismo título y url original
-    // (pueden haber varios si está en varias oposiciones)
-    const snap = await getDocs(collection(window._fbDb, 'temario'));
-    const docsDelMismoTema = [];
-    snap.forEach(d => {
-      const data = d.data();
-      if (d.id === docId || (data.titulo === titulo && data.url === url)) {
-        docsDelMismoTema.push(d.id);
-      }
-    });
-
-    // Borrar los documentos existentes de este tema
-    for (const id of docsDelMismoTema) {
-      await deleteDoc(doc(window._fbDb, 'temario', id));
-    }
-
-    // Crear uno nuevo por cada oposición seleccionada
-    for (const oposId of opsSeleccionadas) {
-      await addDoc(collection(window._fbDb, 'temario'), {
-        oposicion: oposId,
-        num,
-        titulo,
-        url,
-        creadoEn: serverTimestamp()
-      });
-    }
-
-    showSaveToast('✓ Tema actualizado correctamente', 'ok');
-  } catch(e) {
-    alert('Error al guardar: ' + e.message);
   }
 }
 
