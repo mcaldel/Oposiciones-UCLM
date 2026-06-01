@@ -859,9 +859,8 @@ function listenSharedQuestions() {
       const data = doc.data();
       const myUid = currentUser ? currentUser.id : null;
 
-      // Si esta pregunta es del propio usuario, NO añadirla a BASE_QUESTIONS
-      // porque ya está en customQuestions (evita duplicado)
-      if (data.authorId === myUid) return;
+      // Si esta pregunta es del propio usuario Y ya está en customQuestions, no duplicar
+      if (data.authorId === myUid && customQuestions.some(q => q.id === data.question.id)) return;
 
       // Importar la asignatura del autor si no existe en mi sesión
       if (data.subject && data.subject.id && !subjects[data.subject.id]) {
