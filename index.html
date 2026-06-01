@@ -1495,11 +1495,9 @@ function wizardSelectPool(pool, el) {
 }
 
 function wizardStart() {
-  let qs = [...allQuestions];
-  if (wizardOposicion && wizardOposicion !== 'all') {
-    const sids = new Set(getSubjectsForOposicion(wizardOposicion).map(s => s.id));
-    qs = qs.filter(q => sids.has(q.subject));
-  }
+  let qs = wizardOposicion && wizardOposicion !== 'all'
+    ? getQuestionsForOposicion(wizardOposicion)
+    : [...allQuestions];
   if (wizardSubject !== 'all') qs = qs.filter(q => q.subject === wizardSubject);
   if (wizardUnit !== 'all')    qs = qs.filter(q => q.unit === wizardUnit);
   if (qs.length === 0) { alert('No hay preguntas disponibles.'); return; }
