@@ -2058,8 +2058,10 @@ function showAdmin() {
                   || '<span style="color:var(--muted);font-size:10px">—</span>'
                 }</td>
                 <td><div class="admin-actions">
+                  ${(currentUser && (currentUser.email === 'mcalzadodelgado@gmail.com' || q.authorId === currentUser.id)) ? `
                   <button class="icon-btn" title="Editar" onclick="startEdit('${q.id}')">✏</button>
                   <button class="icon-btn del" title="Eliminar" onclick="deleteQuestion('${q.id}')">✕</button>
+                  ` : '<span style="color:var(--muted);font-size:11px">—</span>'}
                 </div></td>
               </tr>`).join('')}
           </tbody>
