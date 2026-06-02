@@ -151,6 +151,32 @@
   .mode-card.mc-danger:hover { border-color: var(--danger); }
   .mode-card.mc-success { border-color: rgba(29,158,117,0.3); }
   .mode-card.mc-success:hover { border-color: var(--success); }
+  .mode-card.mc-accent { border-color: rgba(127,119,221,0.3); }
+  .mode-card.mc-accent:hover { border-color: var(--accent); }
+  .mode-icon-wrap.ic-accent { background: var(--accent-bg); }
+  .mode-pill.pa { background: var(--accent-bg); color: var(--accent-light); }
+
+  /* ── EXAM REVIEW ── */
+  .exam-review-header { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+  .exam-score-big { font-family: 'Syne',system-ui,sans-serif; font-size: 2.8rem; font-weight: 800; line-height: 1; }
+  .exam-score-big.pass { color: var(--success-text); }
+  .exam-score-big.fail { color: var(--danger-text); }
+  .exam-review-q { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 10px; }
+  .exam-review-q.q-correct { border-left: 3px solid var(--success); }
+  .exam-review-q.q-wrong { border-left: 3px solid var(--danger); }
+  .exam-review-q.q-skipped { border-left: 3px solid var(--muted); }
+  .exam-review-q-text { font-size: 13px; font-weight: 600; margin-bottom: 8px; line-height: 1.5; }
+  .exam-review-opt { font-size: 12px; padding: 4px 8px; border-radius: 6px; margin-bottom: 3px; display: flex; gap: 8px; }
+  .exam-review-opt.opted { background: var(--danger-bg); color: var(--danger-text); }
+  .exam-review-opt.correct-opt { background: var(--success-bg); color: var(--success-text); }
+  .exam-review-exp { font-size: 11px; color: var(--muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.5; }
+
+  /* ── SAVED EXAMS ── */
+  .saved-exam-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 10px; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; gap: 14px; }
+  .saved-exam-card:hover { background: var(--surface2); }
+  .saved-exam-score { font-family: 'Syne',system-ui,sans-serif; font-size: 1.4rem; font-weight: 800; min-width: 52px; text-align: center; }
+  .saved-exam-score.pass { color: var(--success-text); }
+  .saved-exam-score.fail { color: var(--danger-text); }
   .mode-icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 13px; }
   .mode-icon-wrap.ic-amber   { background: var(--warning-bg); }
   .mode-icon-wrap.ic-danger  { background: var(--danger-bg); }
@@ -163,6 +189,8 @@
   .mode-pill.pd { background: var(--danger-bg); color: var(--danger-text); }
   .mode-pill.ps { background: var(--success-bg); color: var(--success-text); }
   .mode-pill svg { width: 10px; height: 10px; display: block; }
+  .option-btn.exam-selected { border-color: var(--accent) !important; background: var(--accent-bg) !important; color: var(--accent-light) !important; }
+  .option-btn.exam-selected .option-letter { background: var(--accent) !important; color: #fff !important; }
   .mode-icon { display: none; }
   .home-hero { padding: 1.5rem 0 1.25rem; }
   .home-hero h1 { font-family: 'Syne', ui-rounded, -apple-system, 'SF Pro Rounded', 'Helvetica Neue', system-ui, sans-serif; font-size: 1.85rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; margin-bottom: 0; }
@@ -929,6 +957,9 @@ let currentSubjectFilter = 'all';
 let currentUnitFilter = 'all';
 let currentOposicionFilter = 'all';
 let quizState = null;
+let savedExams = [];       // { id, date, oposicion, score, nota, answers:[{qid,chosen}], questions:[...] }
+let examAnswers = [];      // answers during exam mode: index -> chosen option (-1 = skipped)
+let examReviewId = null;   // id of exam being reviewed
 let editingId = null;
 let adminSubjectFilter = 'all';
 let adminUnitFilter = 'all';
@@ -944,6 +975,7 @@ function loadData() {
   customQuestions = d.customQuestions || [];
   failedIds = new Set(d.failedIds || []);
   seenIds = new Set(d.seenIds || []);
+  savedExams = d.savedExams || [];
   subjects = (d.subjects && Object.keys(d.subjects).length > 0) ? d.subjects : copyObj(BASE_SUBJECTS);
   oposiciones = (d.oposiciones && Object.keys(d.oposiciones).length > 0) ? d.oposiciones : copyObj(BASE_OPOSICIONES);
   var skip = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
@@ -957,7 +989,8 @@ function saveData() {
     failedIds: Array.from(failedIds),
     seenIds: Array.from(seenIds),
     subjects,
-    oposiciones
+    oposiciones,
+    savedExams
   };
   // Guardar datos localmente usando el uid de Firebase
   if (currentUser.id) {
@@ -1237,6 +1270,12 @@ function showHome() {
         <div class="mode-title">Test aleatorio</div>
         <div class="mode-desc">Preguntas mezcladas. Simula el examen real con el número que elijas.</div>
         <div class="mode-pill pw">${ic.play} Elegir oposición</div>
+      </div>
+      <div class="mode-card mc-accent" onclick="examWizardStep0()">
+        <div class="mode-icon-wrap ic-accent"><svg viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="13" height="13" rx="3" stroke="var(--accent)" stroke-width="1.3"/><path d="M5.5 6h7M5.5 9h7M5.5 12h4" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+        <div class="mode-title">Test Real</div>
+        <div class="mode-desc">50 preguntas, examen oficial. Penalización por error. Resultado al finalizar.</div>
+        <div class="mode-pill pa">${ic.play} Elegir oposición</div>
       </div>
       ${failedCard}
       <div class="mode-card mc-success" onclick="navTo('add')">
@@ -1613,6 +1652,318 @@ function selectOption(selected) {
 }
 
 function nextQuestion() { quizState.index++; renderQuestion(); }
+
+
+/* ══════════════════════════════════════════════
+   TEST REAL — Wizard, Exam Engine, Review, Saved
+   ══════════════════════════════════════════════ */
+
+function examWizardStep0() {
+  const opWithQ = Object.keys(oposiciones).filter(oid => getQuestionsForOposicion(oid).length >= 10);
+  if (opWithQ.length === 0) {
+    alert('Necesitas al menos 10 preguntas en una oposición para hacer un Test Real.');
+    return;
+  }
+  if (opWithQ.length === 1) { startRealExam(opWithQ[0]); return; }
+
+  const cards = Object.values(oposiciones).map(op => {
+    const opQs = getQuestionsForOposicion(op.id);
+    if (opQs.length < 10) return '';
+    const examsForOp = savedExams.filter(e => e.oposicion === op.id).length;
+    return `<div class="op-card" onclick="startRealExam('${op.id}')" style="border-left:3px solid ${op.color}">
+      <div class="op-card-icon">${op.icon}</div>
+      <div class="op-card-info">
+        <div class="op-card-name" style="color:${op.color}">${op.name}</div>
+        <div class="op-card-sub">${opQs.length} preguntas · ${examsForOp} exámenes guardados</div>
+      </div>
+      <div class="op-card-badge">›</div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  document.getElementById('main-inner').innerHTML = `
+    <div class="wz-breadcrumb">
+      <button class="wz-back" onclick="navTo('home')">← Inicio</button>
+      <span class="wz-step active" style="color:var(--accent)">Test Real</span>
+      <span class="wz-sep">›</span><span class="wz-step">Oposición</span>
+    </div>
+    <div class="wz-title">¿Para qué oposición?</div>
+    <div class="wz-sub">El examen tendrá 50 preguntas aleatorias con al menos 1 de cada tema.</div>
+    <div class="op-grid">${cards}</div>
+  `;
+}
+
+function startRealExam(opId) {
+  // Deduplicate by ID (a question can appear in multiple oposiciones)
+  const seen = new Set();
+  const qs = getQuestionsForOposicion(opId).filter(q => {
+    if (seen.has(q.id)) return false;
+    seen.add(q.id);
+    return true;
+  });
+
+  // Group by unit
+  const byUnit = {};
+  qs.forEach(q => {
+    if (!byUnit[q.unit]) byUnit[q.unit] = [];
+    byUnit[q.unit].push(q);
+  });
+  const units = Object.keys(byUnit);
+  const TOTAL = Math.min(50, qs.length);
+
+  // Shuffle each unit pool independently
+  units.forEach(uid => { byUnit[uid] = shuffle(byUnit[uid]); });
+
+  // Pick 1 per unit first (guaranteed coverage)
+  const guaranteed = units.map(uid => byUnit[uid][0]);
+  const remainingPool = shuffle(units.flatMap(uid => byUnit[uid].slice(1)));
+
+  // Fill up to TOTAL without repeats (guaranteed by construction)
+  let selected = [...guaranteed];
+  let i = 0;
+  while (selected.length < TOTAL && i < remainingPool.length) {
+    selected.push(remainingPool[i++]);
+  }
+
+  selected = shuffle(selected);
+  examAnswers = new Array(selected.length).fill(-1);
+  quizState = { questions: selected, index: 0, correct: 0, wrong: 0, shuffled: true, mode: 'exam', oposicion: opId };
+  renderExamQuestion();
+}
+
+function renderExamQuestion() {
+  if (!quizState || quizState.mode !== 'exam') return;
+  const q = quizState.questions[quizState.index];
+  const total = quizState.questions.length;
+  const idx = quizState.index;
+  const pct = Math.round((idx / total) * 100);
+  const letters = ['A','B','C','D'];
+  const sColor = getSubjectColor(q.subject);
+  const answered = examAnswers.filter(a => a !== -1).length;
+  const skipped = idx - answered < 0 ? 0 : 0; // shown in header
+
+  document.getElementById('main-inner').innerHTML = `
+    <div class="question-container">
+      <div class="question-header">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <span style="font-size:11px;font-weight:600;padding:2px 10px;border-radius:100px;background:var(--accent-bg);color:var(--accent-light)">📋 TEST REAL</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">${answered} contestadas · ${total - answered - (total - idx - 1)} pendientes</span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+        <div class="q-counter">${idx + 1} / ${total}</div>
+      </div>
+      <div class="q-meta" style="color:${sColor}">${getSubjectName(q.subject)} · ${q.unitName}</div>
+      <div class="question-text">${q.q}</div>
+      <div class="options" id="options">
+        ${q.opts.map((opt, i) => `
+          <button class="option-btn ${examAnswers[idx] === i ? 'exam-selected' : ''}" id="opt-${i}" onclick="selectExamOption(${i})">
+            <span class="option-letter">${letters[i]}</span>
+            <span>${opt}</span>
+          </button>`).join('')}
+      </div>
+      <div class="action-row" style="display:flex;gap:10px;margin-top:1rem">
+        ${idx > 0 ? `<button class="btn-sec" onclick="examPrev()">← Anterior</button>` : ''}
+        <button class="btn-sec" onclick="skipExamQuestion()" style="margin-left:${idx===0?'0':'0'}">Dejar en blanco</button>
+        <button class="btn-primary visible" id="btn-next" onclick="examNext()" style="margin-left:auto">
+          ${idx + 1 < total ? 'Siguiente →' : 'Finalizar examen'}
+        </button>
+      </div>
+      <div style="margin-top:1rem;text-align:center">
+        <button onclick="confirmFinishExam()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline">Entregar examen ahora</button>
+      </div>
+    </div>
+  `;
+
+  // Highlight previously selected answer
+  if (examAnswers[idx] !== -1) {
+    const btn = document.getElementById('opt-' + examAnswers[idx]);
+    if (btn) btn.classList.add('exam-selected');
+  }
+}
+
+function selectExamOption(i) {
+  examAnswers[quizState.index] = i;
+  document.querySelectorAll('.option-btn').forEach((b, bi) => {
+    b.classList.toggle('exam-selected', bi === i);
+  });
+}
+
+function skipExamQuestion() {
+  examAnswers[quizState.index] = -1;
+  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('exam-selected'));
+}
+
+function examNext() {
+  if (quizState.index + 1 >= quizState.questions.length) {
+    confirmFinishExam();
+  } else {
+    quizState.index++;
+    renderExamQuestion();
+  }
+}
+
+function examPrev() {
+  if (quizState.index > 0) { quizState.index--; renderExamQuestion(); }
+}
+
+function confirmFinishExam() {
+  const answered = examAnswers.filter(a => a !== -1).length;
+  const skipped = examAnswers.filter(a => a === -1).length;
+  if (answered < quizState.questions.length) {
+    if (!confirm(`Tienes ${skipped} pregunta${skipped!==1?'s':''} sin contestar. ¿Entregar el examen igualmente?`)) return;
+  }
+  finishExam();
+}
+
+function finishExam() {
+  const qs = quizState.questions;
+  let correct = 0, wrong = 0, skipped = 0;
+  qs.forEach((q, i) => {
+    const chosen = examAnswers[i];
+    if (chosen === -1) skipped++;
+    else if (chosen === q.correct) correct++;
+    else wrong++;
+  });
+
+  // Score: +0.2 correct, -0.05 wrong, max 10
+  const rawScore = correct * 0.2 - wrong * 0.05;
+  const nota = Math.max(0, Math.min(10, rawScore));
+  const notaStr = nota.toFixed(2);
+  const pass = nota >= 5;
+
+  // Save exam
+  const examId = 'exam_' + Date.now();
+  const exam = {
+    id: examId,
+    date: new Date().toISOString(),
+    oposicion: quizState.oposicion,
+    questions: qs.map(q => q.id),
+    questionsData: qs,
+    answers: examAnswers.slice(),
+    correct, wrong, skipped, nota: parseFloat(notaStr)
+  };
+  savedExams.unshift(exam);
+  // Keep max 20 exams per user
+  if (savedExams.length > 20) savedExams = savedExams.slice(0, 20);
+  saveData();
+
+  showExamResults(examId);
+}
+
+function showExamResults(examId) {
+  const exam = savedExams.find(e => e.id === examId);
+  if (!exam) return;
+  const { correct, wrong, skipped, nota, questionsData, answers, oposicion } = exam;
+  const total = questionsData.length;
+  const pass = nota >= 5;
+  const op = oposiciones[oposicion] || {};
+  const dateStr = new Date(exam.date).toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+  document.getElementById('main-inner').innerHTML = `
+    <div class="results-screen">
+      <div style="text-align:center;margin-bottom:1.5rem">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Resultado del Test Real</div>
+        <div class="exam-score-big ${pass?'pass':'fail'}">${nota.toFixed(2)}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">sobre 10 · ${pass ? '✓ Aprobado' : '✗ Suspenso'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${op.icon||''} ${op.name||oposicion} · ${dateStr}</div>
+      </div>
+      <div class="results-breakdown" style="margin-bottom:1.5rem">
+        <div class="result-item total"><div class="rnum">${total}</div><div class="rlabel">Preguntas</div></div>
+        <div class="result-item ok"><div class="rnum">${correct}</div><div class="rlabel">Correctas<br><span style="font-size:10px;opacity:.7">+${(correct*0.2).toFixed(2)} pts</span></div></div>
+        <div class="result-item fail"><div class="rnum">${wrong}</div><div class="rlabel">Incorrectas<br><span style="font-size:10px;opacity:.7">-${(wrong*0.05).toFixed(2)} pts</span></div></div>
+        <div class="result-item total"><div class="rnum" style="color:var(--muted)">${skipped}</div><div class="rlabel">En blanco</div></div>
+      </div>
+      <div class="results-actions" style="margin-bottom:1.5rem">
+        <button class="btn-primary visible" onclick="showExamReview('${examId}')">📋 Revisar examen</button>
+        <button class="btn-sec" onclick="examWizardStep0()">Nuevo Test Real</button>
+        <button class="btn-sec" onclick="showHome();currentNav='home';setActivePill('home');">Inicio</button>
+      </div>
+    </div>
+  `;
+}
+
+function showExamReview(examId) {
+  const exam = savedExams.find(e => e.id === examId);
+  if (!exam) return;
+  const { correct, wrong, skipped, nota, questionsData, answers, oposicion } = exam;
+  const pass = nota >= 5;
+  const op = oposiciones[oposicion] || {};
+  const letters = ['A','B','C','D'];
+  const dateStr = new Date(exam.date).toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+  const questionsHtml = questionsData.map((q, i) => {
+    const chosen = answers[i];
+    const isCorrect = chosen === q.correct;
+    const isSkipped = chosen === -1;
+    const cls = isSkipped ? 'q-skipped' : isCorrect ? 'q-correct' : 'q-wrong';
+    const badge = isSkipped ? '<span style="color:var(--muted)">— En blanco</span>' : isCorrect ? '<span style="color:var(--success-text)">✓ Correcta (+0.20 pts)</span>' : '<span style="color:var(--danger-text)">✗ Incorrecta (-0.05 pts)</span>';
+    const optsHtml = q.opts.map((opt, oi) => {
+      let cls2 = '';
+      if (oi === q.correct) cls2 = 'correct-opt';
+      else if (oi === chosen && chosen !== q.correct) cls2 = 'opted';
+      return `<div class="exam-review-opt ${cls2}"><span>${letters[oi]}.</span><span>${opt}</span></div>`;
+    }).join('');
+    return `<div class="exam-review-q ${cls}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:11px;color:var(--muted)">${i+1}.</span>
+        ${badge}
+      </div>
+      <div class="exam-review-q-text">${q.q}</div>
+      ${optsHtml}
+      ${q.exp ? `<div class="exam-review-exp">💡 ${q.exp}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('main-inner').innerHTML = `
+    <div class="wz-breadcrumb">
+      <button class="wz-back" onclick="showExamResults('${examId}')">← Resultado</button>
+      <span class="wz-step active" style="color:var(--accent)">Revisión del examen</span>
+    </div>
+    <div class="exam-review-header">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="exam-score-big ${pass?'pass':'fail'}">${nota.toFixed(2)}</div>
+        <div>
+          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:700">${pass?'✓ Aprobado':'✗ Suspenso'} · ${op.icon||''} ${op.name||oposicion}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${dateStr}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${correct} correctas · ${wrong} incorrectas · ${skipped} en blanco</div>
+        </div>
+      </div>
+    </div>
+    ${questionsHtml}
+  `;
+}
+
+function showSavedExams(opId) {
+  const exams = savedExams.filter(e => e.oposicion === opId);
+  const op = oposiciones[opId] || {};
+  if (exams.length === 0) {
+    alert('No hay exámenes guardados para esta oposición todavía.');
+    return;
+  }
+
+  const cardsHtml = exams.map(exam => {
+    const pass = exam.nota >= 5;
+    const dateStr = new Date(exam.date).toLocaleDateString('es-ES', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return `<div class="saved-exam-card" onclick="showExamResults('${exam.id}')">
+      <div class="saved-exam-score ${pass?'pass':'fail'}">${exam.nota.toFixed(2)}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${pass?'✓ Aprobado':'✗ Suspenso'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${dateStr}</div>
+        <div style="font-size:11px;color:var(--muted)">${exam.correct} correctas · ${exam.wrong} incorrectas · ${exam.skipped} en blanco</div>
+      </div>
+      <div style="color:var(--muted);font-size:16px">›</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('main-inner').innerHTML = `
+    <div class="wz-breadcrumb">
+      <button class="wz-back" onclick="navTo('temario');showTemario('${opId}')">← ${op.name||opId}</button>
+      <span class="wz-step active" style="color:var(--accent)">Exámenes guardados</span>
+    </div>
+    <div class="wz-title">${op.icon||''} Exámenes realizados</div>
+    <div class="wz-sub">${exams.length} examen${exams.length!==1?'es':''} · ${op.name||opId}</div>
+    <div style="margin-top:1.25rem">${cardsHtml}</div>
+  `;
+}
 
 function showResults() {
   const { questions, correct, wrong } = quizState;
@@ -2559,7 +2910,10 @@ function showTemario(oposId) {
     }
 
     document.getElementById('main-inner').innerHTML = `
-      <div class="temario-back" onclick="showTemario()">← Volver a oposiciones</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;flex-wrap:wrap">
+        <div class="temario-back" style="margin:0" onclick="showTemario()">← Volver a oposiciones</div>
+        <button class="pill" style="margin-left:auto" onclick="showSavedExams('${oposId}')">📋 Exámenes guardados (${savedExams.filter(e=>e.oposicion===oposId).length})</button>
+      </div>
       <div class="home-hero" style="margin-bottom:1rem"><h1>${op ? op.icon + ' ' + op.name : ''}</h1></div>
       ${adminSection}
       <div class="temario-tema-list">
