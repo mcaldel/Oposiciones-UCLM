@@ -879,7 +879,8 @@ function listenSharedQuestions() {
         oposiciones: questionOposiciones,
         id: 'shared_' + doc.id,
         _shared: true,
-        _sharedBy: data.authorName
+        _sharedBy: data.authorName,
+        authorId: data.authorId
       };
       BASE_QUESTIONS.push(qData);
     });
