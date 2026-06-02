@@ -1121,7 +1121,9 @@ function getQuestionsForOposicion(opId) {
   });
 }
 function getActiveQuestions() {
-  let qs = [...allQuestions];
+  // Dedup by ID (shared questions can appear multiple times if in multiple oposiciones)
+  const _seenIds = new Set();
+  let qs = allQuestions.filter(q => { if (_seenIds.has(q.id)) return false; _seenIds.add(q.id); return true; });
   if (currentOposicionFilter !== 'all') {
     qs = getQuestionsForOposicion(currentOposicionFilter);
   }
@@ -1278,12 +1280,6 @@ function showHome() {
         <div class="mode-pill pa">${ic.play} Elegir oposición</div>
       </div>
       ${failedCard}
-      <div class="mode-card mc-success" onclick="navTo('add')">
-        <div class="mode-icon-wrap ic-success">${ic.anadir}</div>
-        <div class="mode-title">Añadir pregunta</div>
-        <div class="mode-desc">Crea preguntas personalizadas en cualquier asignatura y unidad.</div>
-        <div class="mode-pill ps">${ic.plus} Nueva pregunta</div>
-      </div>
     </div>
   `;
 }
