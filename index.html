@@ -1967,6 +1967,18 @@ function finishExam() {
   showExamResults(examId);
 }
 
+async function deleteExam(examId, opId) {
+  if (!confirm('¿Eliminar este examen? Esta acción no se puede deshacer.')) return;
+  const exam = savedExams.find(e => e.id === examId);
+  if (!exam) return;
+  // Remove from local array immediately
+  savedExams = savedExams.filter(e => e.id !== examId);
+  // Delete from Firestore
+  if (exam._firestoreId) await deleteExamFromFirestore(exam._firestoreId);
+  showSaveToast('🗑 Examen eliminado');
+  showSavedExams(opId);
+}
+
 function showExamResults(examId) {
   const exam = savedExams.find(e => e.id === examId);
   if (!exam) return;
@@ -2068,7 +2080,10 @@ function showSavedExams(opId) {
         <div style="font-size:11px;color:var(--muted);margin-top:2px">${dateStr}</div>
         <div style="font-size:11px;color:var(--muted)">${exam.correct} correctas · ${exam.wrong} incorrectas · ${exam.skipped} en blanco</div>
       </div>
-      <div style="color:var(--muted);font-size:16px">›</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="color:var(--muted);font-size:16px">›</div>
+        <button onclick="event.stopPropagation();deleteExam('${exam.id}','${opId}')" style="background:none;border:none;color:var(--danger-text);cursor:pointer;font-size:16px;padding:4px" title="Eliminar examen">🗑</button>
+      </div>
     </div>`;
   }).join('');
 
