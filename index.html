@@ -151,6 +151,8 @@
   .mode-card.mc-danger:hover { border-color: var(--danger); }
   .mode-card.mc-success { border-color: rgba(29,158,117,0.3); }
   .mode-card.mc-success:hover { border-color: var(--success); }
+  .op-home-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; cursor: pointer; transition: all 0.15s; }
+  .op-home-card:hover { background: var(--surface2); transform: translateX(2px); }
   .mode-card.mc-accent { border-color: rgba(127,119,221,0.3); }
   .mode-card.mc-accent:hover { border-color: var(--accent); }
   .mode-icon-wrap.ic-accent { background: var(--accent-bg); }
@@ -541,9 +543,7 @@ if ('serviceWorker' in navigator) {
   <div id="user-chip-wrap" style="margin-right:4px"></div>
   <div class="header-nav">
     <button class="pill active" id="pill-home" onclick="navTo('home')">Inicio</button>
-    <button class="pill" id="pill-review" onclick="navTo('review')">📖 Repasar</button>
-    <button class="pill" id="pill-failed" onclick="navTo('failed')">Falladas <span id="failed-count-nav"></span></button>
-    <button class="pill" id="pill-add" onclick="navTo('add')">+ Añadir</button>
+    <button class="pill" id="pill-add" onclick="navTo('add')">+ Añadir pregunta</button>
     <button class="pill" id="pill-temario" onclick="navTo('temario')">📄 Temario</button>
     <button class="pill" id="pill-admin" onclick="navTo('admin')">Administrar</button>
 
@@ -611,19 +611,12 @@ if ('serviceWorker' in navigator) {
   <button class="bnav-btn active" id="bnav-home" onclick="navTo('home')">
     <span class="bnav-icon">🏠</span>Inicio
   </button>
-  <button class="bnav-btn" id="bnav-review" onclick="navTo('review')">
-    <span class="bnav-icon">📖</span>Repasar
-  </button>
   <button class="bnav-btn" id="bnav-temario" onclick="navTo('temario')">
     <span class="bnav-icon">📄</span>Temario
-  </button>
-  <button class="bnav-btn" id="bnav-failed" onclick="navTo('failed')">
-    <span class="bnav-icon">⚑</span>Falladas<span id="failed-count-bnav"></span>
   </button>
   <button class="bnav-btn" id="bnav-add" onclick="navTo('add')">
     <span class="bnav-icon">+</span>Añadir
   </button>
-
 </nav>
 
 <script>
@@ -1153,6 +1146,7 @@ let wizardSubject = null;
 let wizardUnit = null;
 let wizardUnitName = '';
 let wizardOnlyUnseen = false;
+let wizardMode = 'aleatorio'; // 'aleatorio' | 'repaso'
 
 /* ── NAV ── */
 function resetSeenIds() {
@@ -1186,34 +1180,14 @@ function showHome() {
   wizardOposicion = null; wizardSubject = null; wizardUnit = null;
   currentSubjectFilter = 'all'; currentUnitFilter = 'all'; currentOposicionFilter = 'all';
   buildSidebar();
+  showOposicionesList();
+}
 
+function showOposicionesList() {
   const failed = failedIds.size;
   const totalOk = allQuestions.length - failed;
   const totalSeen = seenIds.size;
   const totalUnseen = allQuestions.length - totalSeen;
-
-  const ic = {
-    aleatorio: '<svg viewBox="0 0 18 18" fill="none"><path d="M3 5h2l2 3-2 3H3" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 5h-2l-2 3 2 3h2" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 5h4M7 11h4" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" opacity=".5"/></svg>',
-    falladas: '<svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6.5" stroke="var(--danger)" stroke-width="1.3"/><path d="M9 5.5V10" stroke="var(--danger)" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="12.5" r=".9" fill="var(--danger)"/></svg>',
-    anadir: '<svg viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="13" height="13" rx="3" stroke="var(--success)" stroke-width="1.3"/><path d="M9 6v6M6 9h6" stroke="var(--success)" stroke-width="1.4" stroke-linecap="round"/></svg>',
-    play: '<svg viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.3"/><path d="M4 3.5l3 1.5-3 1.5V3.5z" fill="currentColor"/></svg>',
-    warn: '<svg viewBox="0 0 10 10" fill="none"><path d="M5 1.5l4 7H1l4-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5 4.5v2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="5" cy="8" r=".5" fill="currentColor"/></svg>',
-    plus: '<svg viewBox="0 0 10 10" fill="none"><path d="M5 2v6M2 5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
-  };
-
-  const failedCard = failed > 0
-    ? `<div class="mode-card mc-danger" onclick="startFailedQuiz()">
-        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
-        <div class="mode-title">Repasar falladas</div>
-        <div class="mode-desc">Enfócate en las preguntas que has fallado.</div>
-        <div class="mode-pill pd">${ic.warn} ${failed} pregunta${failed!==1?'s':''} pendiente${failed!==1?'s':''}</div>
-      </div>`
-    : `<div class="mode-card mc-danger" style="opacity:.5;cursor:default">
-        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
-        <div class="mode-title">Repasar falladas</div>
-        <div class="mode-desc">Sin preguntas falladas por ahora. ¡Buen trabajo!</div>
-        <div class="mode-pill pd">Sin pendientes</div>
-      </div>`;
 
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   var isAndroid = /android/i.test(navigator.userAgent);
@@ -1225,24 +1199,33 @@ function showHome() {
     bannerHtml = '<div class="download-banner"><div class="download-banner-icon">📲</div><div class="download-banner-text"><div class="download-banner-title">Instala la app en tu Android</div><div class="download-banner-sub">En Chrome toca el menú <strong>⋮</strong> → <strong>Añadir a pantalla de inicio</strong>.</div></div></div>';
   }
 
-  // Oposiciones quick stats
-  const opStatsHtml = Object.values(oposiciones).map(op => {
+  const opCardsHtml = Object.values(oposiciones).map(op => {
     const opQs = getQuestionsForOposicion(op.id);
     const opFailed = opQs.filter(q => failedIds.has(q.id)).length;
     const opUnseen = opQs.filter(q => !seenIds.has(q.id)).length;
-    if (opQs.length === 0) return '';
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;cursor:pointer;transition:all 0.15s;border-left:3px solid ${op.color}"
-      onclick="wizardStep0('${op.id}')" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <span style="font-size:1.1rem">${op.icon}</span>
-        <span style="font-family:'Syne',system-ui,sans-serif;font-weight:700;font-size:13px">${op.name}</span>
-        <span style="margin-left:auto;font-size:11px;font-weight:600;padding:2px 10px;border-radius:100px;background:${op.color}18;color:${op.color}">${opQs.length}</span>
-      </div>
-      <div style="font-size:11px;color:var(--muted)">
-        ${opUnseen} sin ver${opFailed > 0 ? ` · <span style="color:var(--danger-text)">${opFailed} falladas</span>` : ''}
+    const opExams = savedExams.filter(e => e.oposicion === op.id).length;
+    return `<div class="op-home-card" onclick="showOposicionHome('${op.id}')" style="border-left:4px solid ${op.color}">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:2rem;line-height:1">${op.icon}</span>
+        <div style="flex:1">
+          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:800;font-size:1rem;color:${op.color}">${op.name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">
+            ${opQs.length} preguntas · ${opUnseen} sin ver${opFailed > 0 ? ` · <span style="color:var(--danger-text)">${opFailed} falladas</span>` : ''}${opExams > 0 ? ` · ${opExams} examen${opExams!==1?'es':''}` : ''}
+          </div>
+        </div>
+        <span style="font-size:1.2rem;color:var(--muted)">›</span>
       </div>
     </div>`;
-  }).filter(Boolean).join('');
+  }).join('');
+
+  const emptyHtml = Object.keys(oposiciones).length === 0
+    ? `<div style="background:var(--accent-bg);border:1px solid rgba(127,119,221,0.3);border-radius:var(--radius);padding:1.1rem 1.25rem;display:flex;align-items:flex-start;gap:12px">
+        <span style="font-size:1.5rem">💡</span>
+        <div>
+          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:700;font-size:0.9rem;color:var(--accent-light);margin-bottom:4px">¡Empieza añadiendo preguntas!</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">Usa <strong style="color:var(--text)">+ Añadir pregunta</strong> para crear tu primera pregunta.</div>
+        </div>
+      </div>` : '';
 
   document.getElementById('main-inner').innerHTML = bannerHtml + `
     <div class="home-hero"><h1>Estudio<span>Test</span></h1>${currentUser ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Bienvenido, <strong style="color:var(--text)">${escHtml(currentUser.name)}</strong></div>` : ''}</div>
@@ -1255,38 +1238,109 @@ function showHome() {
         <div class="stat-label">No vistas${totalSeen>0?' <span style="font-size:9px;color:var(--muted)">↺ reset</span>':''}</div>
       </div>
     </div>
-    ${opStatsHtml
-    ? `<div class="home-section-label" style="margin-top:0.25rem">Oposiciones</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:1.25rem">${opStatsHtml}</div>`
-    : `<div style="background:var(--accent-bg);border:1px solid rgba(127,119,221,0.3);border-radius:var(--radius);padding:1.1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:flex-start;gap:12px">
-        <span style="font-size:1.5rem">💡</span>
-        <div>
-          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:700;font-size:0.9rem;color:var(--accent-light);margin-bottom:4px">¡Empieza añadiendo preguntas!</div>
-          <div style="font-size:12px;color:var(--muted);line-height:1.6">Usa <strong style="color:var(--text)">+ Añadir</strong> para crear tu primera pregunta. Podrás asignarla a una oposición y crear asignaturas y temas sobre la marcha.</div>
-        </div>
+    <div class="home-section-label">Oposiciones</div>
+    <div style="display:flex;flex-direction:column;gap:10px">${opCardsHtml}${emptyHtml}</div>
+  `;
+}
+
+/* ── OPOSICION HOME ── */
+function showOposicionHome(opId) {
+  const op = oposiciones[opId];
+  if (!op) return;
+  const opQs = getQuestionsForOposicion(opId);
+  const opFailed = opQs.filter(q => failedIds.has(q.id)).length;
+  const opUnseen = opQs.filter(q => !seenIds.has(q.id)).length;
+  const opExams = savedExams.filter(e => e.oposicion === opId).length;
+  const enoughForExam = opQs.length >= 10;
+
+  const ic = {
+    aleatorio: '<svg viewBox="0 0 18 18" fill="none"><path d="M3 5h2l2 3-2 3H3" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 5h-2l-2 3 2 3h2" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 5h4M7 11h4" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" opacity=".5"/></svg>',
+    exam: '<svg viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="13" height="13" rx="3" stroke="var(--accent)" stroke-width="1.3"/><path d="M5.5 6h7M5.5 9h7M5.5 12h4" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    repaso: '<svg viewBox="0 0 18 18" fill="none"><path d="M9 3.5A5.5 5.5 0 1 1 3.5 9" stroke="var(--success)" stroke-width="1.3" stroke-linecap="round"/><path d="M3.5 5.5V9H7" stroke="var(--success)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    falladas: '<svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6.5" stroke="var(--danger)" stroke-width="1.3"/><path d="M9 5.5V10" stroke="var(--danger)" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="12.5" r=".9" fill="var(--danger)"/></svg>',
+    play: '<svg viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.3"/><path d="M4 3.5l3 1.5-3 1.5V3.5z" fill="currentColor"/></svg>',
+    warn: '<svg viewBox="0 0 10 10" fill="none"><path d="M5 1.5l4 7H1l4-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5 4.5v2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="5" cy="8" r=".5" fill="currentColor"/></svg>'
+  };
+
+  const failedCard = opFailed > 0
+    ? `<div class="mode-card mc-danger" onclick="startFailedQuizForOp('${opId}')">
+        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
+        <div class="mode-title">Repasar falladas</div>
+        <div class="mode-desc">Repasa las preguntas que has fallado en esta oposición.</div>
+        <div class="mode-pill pd">${ic.warn} ${opFailed} pregunta${opFailed!==1?'s':''} pendiente${opFailed!==1?'s':''}</div>
       </div>`
-  }
+    : `<div class="mode-card mc-danger" style="opacity:.5;cursor:default">
+        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
+        <div class="mode-title">Repasar falladas</div>
+        <div class="mode-desc">Sin preguntas falladas. ¡Buen trabajo!</div>
+        <div class="mode-pill pd">Sin pendientes</div>
+      </div>`;
+
+  const examCard = enoughForExam
+    ? `<div class="mode-card mc-accent" onclick="startRealExam('${opId}')">
+        <div class="mode-icon-wrap ic-accent">${ic.exam}</div>
+        <div class="mode-title">Simulacro Examen Real</div>
+        <div class="mode-desc">50 preguntas. Penalización por error. Sin corrección hasta el final.</div>
+        <div class="mode-pill pa">${ic.play} Empezar simulacro</div>
+      </div>`
+    : `<div class="mode-card mc-accent" style="opacity:.5;cursor:default">
+        <div class="mode-icon-wrap ic-accent">${ic.exam}</div>
+        <div class="mode-title">Simulacro Examen Real</div>
+        <div class="mode-desc">Necesitas al menos 10 preguntas para hacer un simulacro.</div>
+        <div class="mode-pill pa">${opQs.length}/10 preguntas</div>
+      </div>`;
+
+  const examsBtn = opExams > 0
+    ? `<button class="btn-sec" style="width:100%;margin-top:10px" onclick="showSavedExams('${opId}')">📋 Ver exámenes guardados (${opExams})</button>`
+    : '';
+
+  document.getElementById('main-inner').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem">
+      <button class="wz-back" onclick="navTo('home')">← Inicio</button>
+    </div>
+    <div class="home-hero" style="margin-bottom:1rem">
+      <h1 style="color:${op.color}">${op.icon} ${op.name}</h1>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${opQs.length} preguntas · ${opUnseen} sin ver${opFailed > 0 ? ` · <span style="color:var(--danger-text)">${opFailed} falladas</span>` : ''}</div>
+    </div>
     <div class="home-section-label">Modos de estudio</div>
     <div class="mode-grid">
-      <div class="mode-card mc-amber" onclick="wizardStep0()">
+      ${examCard}
+      <div class="mode-card mc-amber" onclick="wizardStep0('${opId}')">
         <div class="mode-icon-wrap ic-amber">${ic.aleatorio}</div>
-        <div class="mode-title">Test aleatorio</div>
-        <div class="mode-desc">Preguntas mezcladas. Simula el examen real con el número que elijas.</div>
-        <div class="mode-pill pw">${ic.play} Elegir oposición</div>
+        <div class="mode-title">Test Aleatorio</div>
+        <div class="mode-desc">Preguntas mezcladas. Elige el número y el tema.</div>
+        <div class="mode-pill pw">${ic.play} Empezar test</div>
       </div>
-      <div class="mode-card mc-accent" onclick="examWizardStep0()">
-        <div class="mode-icon-wrap ic-accent"><svg viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="13" height="13" rx="3" stroke="var(--accent)" stroke-width="1.3"/><path d="M5.5 6h7M5.5 9h7M5.5 12h4" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/></svg></div>
-        <div class="mode-title">Test Real</div>
-        <div class="mode-desc">50 preguntas, examen oficial. Penalización por error. Resultado al finalizar.</div>
-        <div class="mode-pill pa">${ic.play} Elegir oposición</div>
+      <div class="mode-card mc-success" onclick="showReviewForOp('${opId}')">
+        <div class="mode-icon-wrap ic-success">${ic.repaso}</div>
+        <div class="mode-title">Repasar Test</div>
+        <div class="mode-desc">Repasa todas las preguntas de esta oposición por tema.</div>
+        <div class="mode-pill ps">${ic.play} Repasar</div>
       </div>
       ${failedCard}
     </div>
+    ${examsBtn}
   `;
+}
+
+function startFailedQuizForOp(opId) {
+  const opQs = getQuestionsForOposicion(opId);
+  const qs = shuffle(opQs.filter(q => failedIds.has(q.id)));
+  if (qs.length === 0) { alert('No hay preguntas falladas en esta oposición.'); return; }
+  quizState = { questions: qs, index: 0, correct: 0, wrong: 0, shuffled: true, mode: 'failed' };
+  renderQuestion();
+}
+
+function showReviewForOp(opId) {
+  wizardOposicion = opId;
+  currentOposicionFilter = opId;
+  wizardMode = 'repaso';
+  wizardStep1();
 }
 
 /* ── WIZARD — Paso 0: Oposición ── */
 function wizardStep0(preselect) {
-  wizardOposicion = null; wizardSubject = null; wizardUnit = null;
+  wizardOposicion = null; wizardSubject = null; wizardUnit = null; wizardMode = 'aleatorio';
   const opIds = Object.keys(oposiciones).filter(oid => getQuestionsForOposicion(oid).length > 0 || allQuestions.length === 0);
   // If only one oposicion has questions, skip directly
   const opWithQ = opIds.filter(oid => getQuestionsForOposicion(oid).length > 0);
@@ -1381,8 +1435,8 @@ function wizardStep1() {
 
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
-      <button class="wz-back" onclick="wizardStep0()"  >← Atrás</button>
-      <span class="wz-step active" style="color:var(--warning)">Test aleatorio</span>
+      <button class="wz-back" onclick="wizardOposicion ? showOposicionHome(wizardOposicion) : navTo('home')">← Atrás</button>
+      <span class="wz-step active" style="color:var(--warning)">${wizardMode==='repaso'?'Repasar Test':'Test Aleatorio'}</span>
       <span class="wz-sep">›</span>
       <span class="wz-step active" style="color:${opColor}">${opLabel}</span>
       <span class="wz-sep">›</span><span class="wz-step">Asignatura</span>
@@ -1435,7 +1489,7 @@ function wizardStep2(subjectId) {
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
       <button class="wz-back" onclick="wizardStep1()">← Atrás</button>
-      <span class="wz-step" style="color:var(--warning)">Test aleatorio</span>
+      <span class="wz-step" style="color:var(--warning)">${wizardMode==='repaso'?'Repasar Test':'Test Aleatorio'}</span>
       <span class="wz-sep">›</span>
       <span class="wz-step" style="color:${opColor}">${opLabel}</span>
       <span class="wz-sep">›</span>
@@ -1486,7 +1540,7 @@ function wizardStep3() {
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
       <button class="wz-back" onclick="${backTarget}">← Atrás</button>
-      <span class="wz-step" style="color:var(--warning)">Test aleatorio</span>
+      <span class="wz-step" style="color:var(--warning)">${wizardMode==='repaso'?'Repasar Test':'Test Aleatorio'}</span>
       <span class="wz-sep">›</span>
       <span class="wz-step" style="color:${opColor}">${opLabel}</span>
       <span class="wz-sep">›</span>
@@ -1517,7 +1571,7 @@ function wizardStep3() {
         </div>
       </div>
       <div class="wz-confirm-actions">
-        <button class="wz-btn-primary" onclick="wizardStart()">▶ Iniciar test aleatorio</button>
+        <button class="wz-btn-primary" onclick="wizardStart()">${wizardMode==='repaso'?'▶ Iniciar repaso':'▶ Iniciar test aleatorio'}</button>
         <button class="wz-btn-secondary" onclick="navTo('home')">Cancelar</button>
       </div>
     </div>
@@ -1679,7 +1733,7 @@ function examWizardStep0() {
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
       <button class="wz-back" onclick="navTo('home')">← Inicio</button>
-      <span class="wz-step active" style="color:var(--accent)">Test Real</span>
+      <span class="wz-step active" style="color:var(--accent)">Simulacro Examen Real</span>
       <span class="wz-sep">›</span><span class="wz-step">Oposición</span>
     </div>
     <div class="wz-title">¿Para qué oposición?</div>
@@ -1870,8 +1924,8 @@ function showExamResults(examId) {
       </div>
       <div class="results-actions" style="margin-bottom:1.5rem">
         <button class="btn-primary visible" onclick="showExamReview('${examId}')">📋 Revisar examen</button>
-        <button class="btn-sec" onclick="examWizardStep0()">Nuevo Test Real</button>
-        <button class="btn-sec" onclick="showHome();currentNav='home';setActivePill('home');">Inicio</button>
+        <button class="btn-sec" onclick="showOposicionHome('${oposicion}')">Nuevo simulacro</button>
+        <button class="btn-sec" onclick="navTo('home')">Inicio</button>
       </div>
     </div>
   `;
@@ -1952,7 +2006,7 @@ function showSavedExams(opId) {
 
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
-      <button class="wz-back" onclick="navTo('temario');showTemario('${opId}')">← ${op.name||opId}</button>
+      <button class="wz-back" onclick="showOposicionHome('${opId}')">← ${op.name||opId}</button>
       <span class="wz-step active" style="color:var(--accent)">Exámenes guardados</span>
     </div>
     <div class="wz-title">${op.icon||''} Exámenes realizados</div>
@@ -1982,9 +2036,9 @@ function showResults() {
         <div class="result-item fail"><div class="rnum">${wrong}</div><div class="rlabel">Falladas</div></div>
       </div>
       <div class="results-actions">
-        <button class="btn-primary visible" onclick="wizardStep0()">Nuevo test</button>
+        <button class="btn-primary visible" onclick="wizardOposicion ? showOposicionHome(wizardOposicion) : navTo('home')">Volver</button>
         ${failedIds.size > 0 ? `<button class="btn-sec" onclick="startFailedQuiz()">Repasar falladas (${failedIds.size})</button>` : ''}
-        <button class="btn-sec" onclick="showHome();currentNav='home';setActivePill('home');">Inicio</button>
+        <button class="btn-sec" onclick="navTo('home')">Inicio</button>
       </div>
       <div class="subject-quick-label">Cambiar asignatura</div>
       <div class="subject-quick-grid">${buildSubjectQuickCardsHTML()}</div>
