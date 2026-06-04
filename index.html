@@ -872,10 +872,10 @@ function listenSavedExams() {
   if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
 
   const { collection, onSnapshot, query, orderBy, where } = window._fbFns;
+  // Use only where() — sort client-side to avoid needing a composite index
   const q = query(
     collection(window._fbDb, 'savedExams'),
-    where('userId', '==', window._fbUser.uid),
-    orderBy('createdAt', 'desc')
+    where('userId', '==', window._fbUser.uid)
   );
 
   _examsUnsubscribe = onSnapshot(q, (snapshot) => {
@@ -896,6 +896,8 @@ function listenSavedExams() {
         nota: data.nota
       });
     });
+    // Sort by date descending client-side
+    savedExams.sort((a, b) => new Date(b.date) - new Date(a.date));
     // Refresh oposicion home if open
     if (currentNav === 'home') showHome();
   }, (error) => {
