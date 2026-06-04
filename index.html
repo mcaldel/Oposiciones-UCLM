@@ -2196,11 +2196,17 @@ function finishExam() {
     answers: examAnswers.slice(),
     correct, wrong, skipped, nota: parseFloat(notaStr)
   };
-  // Save to Firestore (syncs across devices); local savedExams updated via listener
+  // Guardar en Firestore
   saveExamToFirestore(exam);
-  // Optimistic local insert so results show immediately before Firestore responds
-  if (!savedExams.find(e => e.id === examId)) savedExams.unshift(exam);
+  // Insertar localmente para que esté disponible inmediatamente
+  if (!savedExams.find(e => e.id === examId)) {
+    savedExams.unshift(exam);
+  }
 
+  // IMPORTANTE: el examen ya ha terminado
+  quizState = null;
+
+  // Mostrar resultados
   showExamResults(examId);
 }
 
