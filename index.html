@@ -2270,10 +2270,19 @@ function showAdd() {
     </div>
   `;
 
-  // Select first color swatch
+  // Auto-select unused color for new subject
   setTimeout(() => {
-    const firstSwatch = document.querySelector('#add-subject-colors div');
-    if (firstSwatch) selectSubjectColor(firstSwatch, '#7f77dd');
+    const palette = ['#7f77dd','#1d9e75','#ba7517','#d85a30','#4a90d9','#9b59b6','#e67e22','#16a085'];
+    const usedColors = new Set(Object.values(subjects).map(s => s.color));
+    const autoColor = palette.find(c => !usedColors.has(c)) || palette[Object.keys(subjects).length % palette.length];
+    const swatch = document.querySelector(`#add-subject-colors div[data-color="${autoColor}"]`);
+    if (swatch) selectSubjectColor(swatch, autoColor);
+    else {
+      const firstSwatch = document.querySelector('#add-subject-colors div');
+      if (firstSwatch) selectSubjectColor(firstSwatch, autoColor);
+      const inp = document.getElementById('add-subject-color');
+      if (inp) inp.value = autoColor;
+    }
     onAddSubjectChange();
   }, 10);
 }
@@ -2424,6 +2433,97 @@ function submitAdd() {
 }
 
 /* ── ADMIN VIEW ── */
+
+/* ── SUBJECT & UNIT MANAGEMENT ── */
+
+function toggleSubjectEdit(sid) {
+  const label = document.getElementById('subj-label-' + sid);
+  const input = document.getElementById('subj-edit-' + sid);
+  const swatches = document.getElementById('subj-swatches-' + sid);
+  const editBtn = document.getElementById('subj-edit-btn-' + sid);
+  const saveBtn = document.getElementById('subj-save-btn-' + sid);
+  const isEditing = input.style.display === 'block';
+  label.style.display = isEditing ? 'inline' : 'none';
+  input.style.display = isEditing ? 'none' : 'block';
+  swatches.style.display = isEditing ? 'none' : 'block';
+  editBtn.style.display = isEditing ? 'inline' : 'none';
+  saveBtn.style.display = isEditing ? 'none' : 'inline';
+}
+
+function selectEditSubjectColor(el, color, sid) {
+  document.querySelectorAll(`#subj-swatches-${sid} div`).forEach(d => d.style.borderColor = 'transparent');
+  el.style.borderColor = '#fff';
+  const inp = document.getElementById('subj-color-' + sid);
+  if (inp) inp.value = color;
+}
+
+function saveSubjectEdit(sid) {
+  const nameInput = document.getElementById('subj-edit-' + sid);
+  const colorInput = document.getElementById('subj-color-' + sid);
+  const newName = (nameInput.value || '').trim();
+  const newColor = colorInput.value || subjects[sid].color;
+  if (!newName) { alert('El nombre no puede estar vacío.'); return; }
+  subjects[sid].name = newName;
+  subjects[sid].color = newColor;
+  saveData();
+  showSaveToast('✓ Asignatura actualizada');
+  showAdmin();
+}
+
+function deleteSubject(sid) {
+  const s = subjects[sid];
+  const qCount = allQuestions.filter(q => q.subject === sid).length;
+  if (!confirm(`¿Eliminar la asignatura "${s.name}"?${qCount > 0 ? `
+
+Tiene ${qCount} pregunta${qCount!==1?'s':''} asociadas que quedarán sin asignatura.` : ''}`)) return;
+  delete subjects[sid];
+  saveData();
+  showSaveToast('🗑 Asignatura eliminada');
+  showAdmin();
+}
+
+function toggleUnitEdit(uid) {
+  const label = document.getElementById('unit-label-' + uid);
+  const input = document.getElementById('unit-edit-' + uid);
+  const editBtn = document.getElementById('unit-edit-btn-' + uid);
+  const saveBtn = document.getElementById('unit-save-btn-' + uid);
+  const isEditing = input.style.display === 'block';
+  label.style.display = isEditing ? 'inline' : 'none';
+  input.style.display = isEditing ? 'none' : 'block';
+  editBtn.style.display = isEditing ? 'inline' : 'none';
+  saveBtn.style.display = isEditing ? 'none' : 'inline';
+}
+
+function saveUnitName(uid, sid) {
+  const input = document.getElementById('unit-edit-' + uid);
+  const newName = (input.value || '').trim();
+  if (!newName) { alert('El nombre del tema no puede estar vacío.'); return; }
+  // Update all questions that use this unit
+  let changed = 0;
+  allQuestions.forEach(q => {
+    if (q.unit === uid) { q.unitName = newName; changed++; }
+  });
+  // Update customQuestions too
+  customQuestions.forEach(q => { if (q.unit === uid) q.unitName = newName; });
+  saveData();
+  showSaveToast(`✓ Tema renombrado (${changed} pregunta${changed!==1?'s':''})`);
+  showAdmin();
+}
+
+function deleteUnit(uid, sid) {
+  const qCount = allQuestions.filter(q => q.unit === uid).length;
+  const unitName = (allQuestions.find(q => q.unit === uid) || {}).unitName || uid;
+  if (!confirm(`¿Eliminar el tema "${unitName}"?${qCount > 0 ? `
+
+Tiene ${qCount} pregunta${qCount!==1?'s':''} asociadas que quedarán sin tema.` : ''}`)) return;
+  // Remove unit from all questions (mark as orphan)
+  allQuestions.forEach(q => { if (q.unit === uid) q.unit = '__orphan__'; });
+  customQuestions.forEach(q => { if (q.unit === uid) q.unit = '__orphan__'; });
+  saveData();
+  showSaveToast('🗑 Tema eliminado');
+  showAdmin();
+}
+
 function showAdmin() {
   const inner = document.getElementById('main-inner');
   const subjectOptions = `<option value="all">Todas las asignaturas</option>` + Object.entries(subjects).map(([id,s]) => `<option value="${id}" ${adminSubjectFilter===id?'selected':''}>${s.name}</option>`).join('');
@@ -2436,6 +2536,43 @@ function showAdmin() {
     <div class="admin-page">
       <h2>Administrar preguntas</h2>
       <p class="form-subtitle">Edita o elimina cualquier pregunta. Los cambios se guardan localmente.</p>
+      <details style="margin-bottom:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0">
+        <summary style="padding:12px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--accent-light);list-style:none;display:flex;align-items:center;gap:8px">
+          ✏️ Gestionar asignaturas y temas
+        </summary>
+        <div style="padding:0 16px 16px 16px;border-top:1px solid var(--border)">
+          ${Object.values(subjects).length === 0 ? '<div style="color:var(--muted);font-size:12px;padding-top:12px">No hay asignaturas creadas todavía.</div>' :
+            Object.values(subjects).map(s => {
+              const units = getUnitsForSubject(s.id);
+              const palette = ['#7f77dd','#1d9e75','#ba7517','#d85a30','#4a90d9','#9b59b6','#e67e22','#16a085'];
+              const swatches = palette.map(c => `<div onclick="selectEditSubjectColor(this,'${c}','${s.id}')" data-color="${c}"
+                style="width:20px;height:20px;border-radius:50%;background:${c};cursor:pointer;display:inline-block;border:2px solid ${c===s.color?'#fff':'transparent'};transition:border-color 0.15s;margin-right:4px"
+                onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform=''"></div>`).join('');
+              const unitsHtml = units.map(u => `
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+                  <span style="font-size:12px;flex:1;color:var(--muted)" id="unit-label-${u.unit}">${escHtml(u.name)}</span>
+                  <input class="form-input" id="unit-edit-${u.unit}" value="${escHtml(u.name)}" style="display:none;flex:1;padding:3px 8px;font-size:12px">
+                  <button onclick="toggleUnitEdit('${u.unit}')" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer" id="unit-edit-btn-${u.unit}">✏️ Editar</button>
+                  <button onclick="saveUnitName('${u.unit}','${s.id}')" style="font-size:11px;color:var(--success-text);background:none;border:none;cursor:pointer;display:none" id="unit-save-btn-${u.unit}">💾 Guardar</button>
+                  <button onclick="deleteUnit('${u.unit}','${s.id}')" style="font-size:11px;color:var(--danger-text);background:none;border:none;cursor:pointer">🗑 Eliminar</button>
+                </div>`).join('');
+              return `<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px;border-left:3px solid ${s.color}">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+                  <span style="font-weight:700;color:${s.color};font-size:13px" id="subj-label-${s.id}">${escHtml(s.name)}</span>
+                  <input class="form-input" id="subj-edit-${s.id}" value="${escHtml(s.name)}" style="display:none;max-width:220px;padding:3px 8px;font-size:12px">
+                  <div id="subj-swatches-${s.id}" style="display:none">${swatches}</div>
+                  <input type="hidden" id="subj-color-${s.id}" value="${s.color}">
+                  <button onclick="toggleSubjectEdit('${s.id}')" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer" id="subj-edit-btn-${s.id}">✏️ Editar</button>
+                  <button onclick="saveSubjectEdit('${s.id}')" style="font-size:11px;color:var(--success-text);background:none;border:none;cursor:pointer;display:none" id="subj-save-btn-${s.id}">💾 Guardar</button>
+                  <button onclick="deleteSubject('${s.id}')" style="font-size:11px;color:var(--danger-text);background:none;border:none;cursor:pointer;margin-left:auto">🗑 Eliminar asignatura</button>
+                </div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${units.length} tema${units.length!==1?'s':''}</div>
+                ${unitsHtml || '<div style="font-size:11px;color:var(--muted)">Sin temas</div>'}
+              </div>`;
+            }).join('')
+          }
+        </div>
+      </details>
       <div class="admin-filters">
         <select class="form-select" style="width:200px" onchange="adminSubjectFilter=this.value;adminUnitFilter='all';showAdmin()">${subjectOptions}</select>
         <select class="form-select" style="width:200px" onchange="adminUnitFilter=this.value;showAdmin()">${unitOptions}</select>
