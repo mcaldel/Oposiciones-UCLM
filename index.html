@@ -907,7 +907,9 @@ function listenSavedExams() {
     // Sort by date descending client-side
     savedExams.sort((a, b) => new Date(b.date) - new Date(a.date));
     // Refresh oposicion home if open
-    if (currentNav === 'home') showHome();
+    if (currentNav === 'home' && !quizState) {
+  showHome();
+}
   }, (error) => {
     console.warn('Error escuchando exámenes:', error);
   });
