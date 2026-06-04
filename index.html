@@ -16,7 +16,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAza4dzi5lj17OcDIaLthBDX5jGXZtm6GM",
@@ -34,7 +34,7 @@
   // Hacemos auth y db accesibles desde el resto del código
   window._fbAuth = auth;
   window._fbDb = db;
-  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp };
+  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp };
 
   // Escuchar cambios de sesión Firebase
   onAuthStateChanged(auth, (user) => {
@@ -833,6 +833,7 @@ function startSession(session) {
   buildSidebar();
   listenSharedQuestions();
   listenTemario();
+  listenSavedExams();
   showHome();
 }
 
@@ -856,6 +857,74 @@ function tryAutoLogin() {
     return true;
   }
   return false;
+}
+
+
+/* ════════════════════════════════════════════════════════
+   EXÁMENES GUARDADOS — Firestore
+   ════════════════════════════════════════════════════════ */
+
+let _examsUnsubscribe = null;
+
+function listenSavedExams() {
+  if (!window._fbDb || !window._fbFns || !window._fbUser) return;
+  if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
+
+  const { collection, onSnapshot, query, orderBy, where } = window._fbFns;
+  const q = query(
+    collection(window._fbDb, 'savedExams'),
+    where('userId', '==', window._fbUser.uid),
+    orderBy('createdAt', 'desc')
+  );
+
+  _examsUnsubscribe = onSnapshot(q, (snapshot) => {
+    savedExams = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      savedExams.push({
+        _firestoreId: doc.id,
+        id: data.id,
+        date: data.date,
+        oposicion: data.oposicion,
+        questions: data.questions,
+        questionsData: data.questionsData,
+        answers: data.answers,
+        correct: data.correct,
+        wrong: data.wrong,
+        skipped: data.skipped,
+        nota: data.nota
+      });
+    });
+    // Refresh oposicion home if open
+    if (currentNav === 'home') showHome();
+  }, (error) => {
+    console.warn('Error escuchando exámenes:', error);
+  });
+}
+
+async function saveExamToFirestore(exam) {
+  if (!window._fbDb || !window._fbUser || !currentUser) return;
+  try {
+    const { collection, addDoc, serverTimestamp } = window._fbFns;
+    await addDoc(collection(window._fbDb, 'savedExams'), {
+      ...exam,
+      userId: window._fbUser.uid,
+      createdAt: serverTimestamp()
+    });
+  } catch(e) {
+    console.warn('Error guardando examen en Firestore:', e.message);
+    // Fallback: keep in localStorage only
+  }
+}
+
+async function deleteExamFromFirestore(firestoreId) {
+  if (!window._fbDb || !window._fbFns || !firestoreId) return;
+  try {
+    const { deleteDoc, doc } = window._fbFns;
+    await deleteDoc(doc(window._fbDb, 'savedExams', firestoreId));
+  } catch(e) {
+    console.warn('Error eliminando examen:', e.message);
+  }
 }
 
 /* ════════════════════════════════════════════════════════
@@ -968,7 +1037,7 @@ function loadData() {
   customQuestions = d.customQuestions || [];
   failedIds = new Set(d.failedIds || []);
   seenIds = new Set(d.seenIds || []);
-  savedExams = d.savedExams || [];
+  // savedExams loaded from Firestore via listenSavedExams()
   subjects = (d.subjects && Object.keys(d.subjects).length > 0) ? d.subjects : copyObj(BASE_SUBJECTS);
   oposiciones = (d.oposiciones && Object.keys(d.oposiciones).length > 0) ? d.oposiciones : copyObj(BASE_OPOSICIONES);
   var skip = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
@@ -983,7 +1052,6 @@ function saveData() {
     seenIds: Array.from(seenIds),
     subjects,
     oposiciones,
-    savedExams
   };
   // Guardar datos localmente usando el uid de Firebase
   if (currentUser.id) {
@@ -1891,10 +1959,10 @@ function finishExam() {
     answers: examAnswers.slice(),
     correct, wrong, skipped, nota: parseFloat(notaStr)
   };
-  savedExams.unshift(exam);
-  // Keep max 20 exams per user
-  if (savedExams.length > 20) savedExams = savedExams.slice(0, 20);
-  saveData();
+  // Save to Firestore (syncs across devices); local savedExams updated via listener
+  saveExamToFirestore(exam);
+  // Optimistic local insert so results show immediately before Firestore responds
+  if (!savedExams.find(e => e.id === examId)) savedExams.unshift(exam);
 
   showExamResults(examId);
 }
