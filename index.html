@@ -16,7 +16,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, deleteDoc, setDoc, getDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAza4dzi5lj17OcDIaLthBDX5jGXZtm6GM",
@@ -34,7 +34,7 @@
   // Hacemos auth y db accesibles desde el resto del código
   window._fbAuth = auth;
   window._fbDb = db;
-  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp };
+  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, getDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp };
 
   // Escuchar cambios de sesión Firebase
   onAuthStateChanged(auth, (user) => {
@@ -151,6 +151,8 @@
   .mode-card.mc-danger:hover { border-color: var(--danger); }
   .mode-card.mc-success { border-color: rgba(29,158,117,0.3); }
   .mode-card.mc-success:hover { border-color: var(--success); }
+  .op-home-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; cursor: pointer; transition: all 0.15s; }
+  .op-home-card:hover { background: var(--surface2); transform: translateX(2px); }
   .mode-card.mc-accent { border-color: rgba(127,119,221,0.3); }
   .mode-card.mc-accent:hover { border-color: var(--accent); }
   .mode-icon-wrap.ic-accent { background: var(--accent-bg); }
@@ -541,9 +543,7 @@ if ('serviceWorker' in navigator) {
   <div id="user-chip-wrap" style="margin-right:4px"></div>
   <div class="header-nav">
     <button class="pill active" id="pill-home" onclick="navTo('home')">Inicio</button>
-    <button class="pill" id="pill-review" onclick="navTo('review')">📖 Repasar</button>
-    <button class="pill" id="pill-failed" onclick="navTo('failed')">Falladas <span id="failed-count-nav"></span></button>
-    <button class="pill" id="pill-add" onclick="navTo('add')">+ Añadir</button>
+    <button class="pill" id="pill-add" onclick="navTo('add')">+ Añadir pregunta</button>
     <button class="pill" id="pill-temario" onclick="navTo('temario')">📄 Temario</button>
     <button class="pill" id="pill-admin" onclick="navTo('admin')">Administrar</button>
 
@@ -611,19 +611,12 @@ if ('serviceWorker' in navigator) {
   <button class="bnav-btn active" id="bnav-home" onclick="navTo('home')">
     <span class="bnav-icon">🏠</span>Inicio
   </button>
-  <button class="bnav-btn" id="bnav-review" onclick="navTo('review')">
-    <span class="bnav-icon">📖</span>Repasar
-  </button>
   <button class="bnav-btn" id="bnav-temario" onclick="navTo('temario')">
     <span class="bnav-icon">📄</span>Temario
-  </button>
-  <button class="bnav-btn" id="bnav-failed" onclick="navTo('failed')">
-    <span class="bnav-icon">⚑</span>Falladas<span id="failed-count-bnav"></span>
   </button>
   <button class="bnav-btn" id="bnav-add" onclick="navTo('add')">
     <span class="bnav-icon">+</span>Añadir
   </button>
-
 </nav>
 
 <script>
@@ -840,6 +833,8 @@ function startSession(session) {
   buildSidebar();
   listenSharedQuestions();
   listenTemario();
+  listenSavedExams();
+  loadStreakFromFirestore();
   showHome();
 }
 
@@ -863,6 +858,74 @@ function tryAutoLogin() {
     return true;
   }
   return false;
+}
+
+
+/* ════════════════════════════════════════════════════════
+   EXÁMENES GUARDADOS — Firestore
+   ════════════════════════════════════════════════════════ */
+
+let _examsUnsubscribe = null;
+
+function listenSavedExams() {
+  if (!window._fbDb || !window._fbFns || !window._fbUser) return;
+  if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
+
+  const { collection, onSnapshot, query, orderBy, where } = window._fbFns;
+  const q = query(
+    collection(window._fbDb, 'savedExams'),
+    where('userId', '==', window._fbUser.uid),
+    orderBy('createdAt', 'desc')
+  );
+
+  _examsUnsubscribe = onSnapshot(q, (snapshot) => {
+    savedExams = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      savedExams.push({
+        _firestoreId: doc.id,
+        id: data.id,
+        date: data.date,
+        oposicion: data.oposicion,
+        questions: data.questions,
+        questionsData: data.questionsData,
+        answers: data.answers,
+        correct: data.correct,
+        wrong: data.wrong,
+        skipped: data.skipped,
+        nota: data.nota
+      });
+    });
+    // Refresh oposicion home if open
+    if (currentNav === 'home') showHome();
+  }, (error) => {
+    console.warn('Error escuchando exámenes:', error);
+  });
+}
+
+async function saveExamToFirestore(exam) {
+  if (!window._fbDb || !window._fbUser || !currentUser) return;
+  try {
+    const { collection, addDoc, serverTimestamp } = window._fbFns;
+    await addDoc(collection(window._fbDb, 'savedExams'), {
+      ...exam,
+      userId: window._fbUser.uid,
+      createdAt: serverTimestamp()
+    });
+  } catch(e) {
+    console.warn('Error guardando examen en Firestore:', e.message);
+    // Fallback: keep in localStorage only
+  }
+}
+
+async function deleteExamFromFirestore(firestoreId) {
+  if (!window._fbDb || !window._fbFns || !firestoreId) return;
+  try {
+    const { deleteDoc, doc } = window._fbFns;
+    await deleteDoc(doc(window._fbDb, 'savedExams', firestoreId));
+  } catch(e) {
+    console.warn('Error eliminando examen:', e.message);
+  }
 }
 
 /* ════════════════════════════════════════════════════════
@@ -960,6 +1023,9 @@ let quizState = null;
 let savedExams = [];       // { id, date, oposicion, score, nota, answers:[{qid,chosen}], questions:[...] }
 let examAnswers = [];      // answers during exam mode: index -> chosen option (-1 = skipped)
 let examReviewId = null;   // id of exam being reviewed
+let questionStats = {};    // {qid: {asked:N, wrong:N}}
+let streak = { count: 0, lastDate: null };
+let examTimer = null;      // interval id for exam countdown
 let editingId = null;
 let adminSubjectFilter = 'all';
 let adminUnitFilter = 'all';
@@ -975,7 +1041,9 @@ function loadData() {
   customQuestions = d.customQuestions || [];
   failedIds = new Set(d.failedIds || []);
   seenIds = new Set(d.seenIds || []);
-  savedExams = d.savedExams || [];
+  questionStats = d.questionStats || {};   // {qid: {asked:N, wrong:N}}
+  streak = d.streak || { count: 0, lastDate: null };
+  // savedExams loaded from Firestore via listenSavedExams()
   subjects = (d.subjects && Object.keys(d.subjects).length > 0) ? d.subjects : copyObj(BASE_SUBJECTS);
   oposiciones = (d.oposiciones && Object.keys(d.oposiciones).length > 0) ? d.oposiciones : copyObj(BASE_OPOSICIONES);
   var skip = new Set(customQuestions.filter(q => q.override || q._deleted).map(q => q.id));
@@ -990,7 +1058,8 @@ function saveData() {
     seenIds: Array.from(seenIds),
     subjects,
     oposiciones,
-    savedExams
+    questionStats,
+    streak,
   };
   // Guardar datos localmente usando el uid de Firebase
   if (currentUser.id) {
@@ -1153,6 +1222,7 @@ let wizardSubject = null;
 let wizardUnit = null;
 let wizardUnitName = '';
 let wizardOnlyUnseen = false;
+let wizardMode = 'aleatorio'; // 'aleatorio' | 'repaso'
 
 /* ── NAV ── */
 function resetSeenIds() {
@@ -1162,6 +1232,11 @@ function resetSeenIds() {
 }
 
 function navTo(view) {
+  // Warn if leaving an active exam
+  if (quizState && quizState.mode === 'exam') {
+    if (!confirm('¿Salir del simulacro? El examen no se guardará.')) return;
+    quizState = null;
+  }
   currentNav = view; setActivePill(view);
   if (view === 'home') showHome();
   else if (view === 'review') showReview();
@@ -1186,34 +1261,14 @@ function showHome() {
   wizardOposicion = null; wizardSubject = null; wizardUnit = null;
   currentSubjectFilter = 'all'; currentUnitFilter = 'all'; currentOposicionFilter = 'all';
   buildSidebar();
+  showOposicionesList();
+}
 
+function showOposicionesList() {
   const failed = failedIds.size;
   const totalOk = allQuestions.length - failed;
   const totalSeen = seenIds.size;
   const totalUnseen = allQuestions.length - totalSeen;
-
-  const ic = {
-    aleatorio: '<svg viewBox="0 0 18 18" fill="none"><path d="M3 5h2l2 3-2 3H3" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 5h-2l-2 3 2 3h2" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 5h4M7 11h4" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" opacity=".5"/></svg>',
-    falladas: '<svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6.5" stroke="var(--danger)" stroke-width="1.3"/><path d="M9 5.5V10" stroke="var(--danger)" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="12.5" r=".9" fill="var(--danger)"/></svg>',
-    anadir: '<svg viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="13" height="13" rx="3" stroke="var(--success)" stroke-width="1.3"/><path d="M9 6v6M6 9h6" stroke="var(--success)" stroke-width="1.4" stroke-linecap="round"/></svg>',
-    play: '<svg viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.3"/><path d="M4 3.5l3 1.5-3 1.5V3.5z" fill="currentColor"/></svg>',
-    warn: '<svg viewBox="0 0 10 10" fill="none"><path d="M5 1.5l4 7H1l4-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5 4.5v2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="5" cy="8" r=".5" fill="currentColor"/></svg>',
-    plus: '<svg viewBox="0 0 10 10" fill="none"><path d="M5 2v6M2 5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
-  };
-
-  const failedCard = failed > 0
-    ? `<div class="mode-card mc-danger" onclick="startFailedQuiz()">
-        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
-        <div class="mode-title">Repasar falladas</div>
-        <div class="mode-desc">Enfócate en las preguntas que has fallado.</div>
-        <div class="mode-pill pd">${ic.warn} ${failed} pregunta${failed!==1?'s':''} pendiente${failed!==1?'s':''}</div>
-      </div>`
-    : `<div class="mode-card mc-danger" style="opacity:.5;cursor:default">
-        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
-        <div class="mode-title">Repasar falladas</div>
-        <div class="mode-desc">Sin preguntas falladas por ahora. ¡Buen trabajo!</div>
-        <div class="mode-pill pd">Sin pendientes</div>
-      </div>`;
 
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   var isAndroid = /android/i.test(navigator.userAgent);
@@ -1225,24 +1280,33 @@ function showHome() {
     bannerHtml = '<div class="download-banner"><div class="download-banner-icon">📲</div><div class="download-banner-text"><div class="download-banner-title">Instala la app en tu Android</div><div class="download-banner-sub">En Chrome toca el menú <strong>⋮</strong> → <strong>Añadir a pantalla de inicio</strong>.</div></div></div>';
   }
 
-  // Oposiciones quick stats
-  const opStatsHtml = Object.values(oposiciones).map(op => {
+  const opCardsHtml = Object.values(oposiciones).map(op => {
     const opQs = getQuestionsForOposicion(op.id);
     const opFailed = opQs.filter(q => failedIds.has(q.id)).length;
     const opUnseen = opQs.filter(q => !seenIds.has(q.id)).length;
-    if (opQs.length === 0) return '';
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;cursor:pointer;transition:all 0.15s;border-left:3px solid ${op.color}"
-      onclick="wizardStep0('${op.id}')" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <span style="font-size:1.1rem">${op.icon}</span>
-        <span style="font-family:'Syne',system-ui,sans-serif;font-weight:700;font-size:13px">${op.name}</span>
-        <span style="margin-left:auto;font-size:11px;font-weight:600;padding:2px 10px;border-radius:100px;background:${op.color}18;color:${op.color}">${opQs.length}</span>
-      </div>
-      <div style="font-size:11px;color:var(--muted)">
-        ${opUnseen} sin ver${opFailed > 0 ? ` · <span style="color:var(--danger-text)">${opFailed} falladas</span>` : ''}
+    const opExams = savedExams.filter(e => e.oposicion === op.id).length;
+    return `<div class="op-home-card" onclick="showOposicionHome('${op.id}')" style="border-left:4px solid ${op.color}">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:2rem;line-height:1">${op.icon}</span>
+        <div style="flex:1">
+          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:800;font-size:1rem;color:${op.color}">${op.name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">
+            ${opQs.length} preguntas · ${opUnseen} sin ver${opFailed > 0 ? ` · <span style="color:var(--danger-text)">${opFailed} falladas</span>` : ''}${opExams > 0 ? ` · ${opExams} examen${opExams!==1?'es':''}` : ''}
+          </div>
+        </div>
+        <span style="font-size:1.2rem;color:var(--muted)">›</span>
       </div>
     </div>`;
-  }).filter(Boolean).join('');
+  }).join('');
+
+  const emptyHtml = Object.keys(oposiciones).length === 0
+    ? `<div style="background:var(--accent-bg);border:1px solid rgba(127,119,221,0.3);border-radius:var(--radius);padding:1.1rem 1.25rem;display:flex;align-items:flex-start;gap:12px">
+        <span style="font-size:1.5rem">💡</span>
+        <div>
+          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:700;font-size:0.9rem;color:var(--accent-light);margin-bottom:4px">¡Empieza añadiendo preguntas!</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">Usa <strong style="color:var(--text)">+ Añadir pregunta</strong> para crear tu primera pregunta.</div>
+        </div>
+      </div>` : '';
 
   document.getElementById('main-inner').innerHTML = bannerHtml + `
     <div class="home-hero"><h1>Estudio<span>Test</span></h1>${currentUser ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Bienvenido, <strong style="color:var(--text)">${escHtml(currentUser.name)}</strong></div>` : ''}</div>
@@ -1255,38 +1319,120 @@ function showHome() {
         <div class="stat-label">No vistas${totalSeen>0?' <span style="font-size:9px;color:var(--muted)">↺ reset</span>':''}</div>
       </div>
     </div>
-    ${opStatsHtml
-    ? `<div class="home-section-label" style="margin-top:0.25rem">Oposiciones</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:1.25rem">${opStatsHtml}</div>`
-    : `<div style="background:var(--accent-bg);border:1px solid rgba(127,119,221,0.3);border-radius:var(--radius);padding:1.1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:flex-start;gap:12px">
-        <span style="font-size:1.5rem">💡</span>
-        <div>
-          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:700;font-size:0.9rem;color:var(--accent-light);margin-bottom:4px">¡Empieza añadiendo preguntas!</div>
-          <div style="font-size:12px;color:var(--muted);line-height:1.6">Usa <strong style="color:var(--text)">+ Añadir</strong> para crear tu primera pregunta. Podrás asignarla a una oposición y crear asignaturas y temas sobre la marcha.</div>
-        </div>
+    ${streak.count > 0 ? `<div style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-bottom:1rem">
+      <span style="font-size:1.3rem">${streak.count >= 7 ? '🔥' : streak.count >= 3 ? '⚡' : '📅'}</span>
+      <div><div style="font-size:13px;font-weight:700">${streak.count} día${streak.count!==1?'s':''} seguido${streak.count!==1?'s':''}</div>
+      <div style="font-size:11px;color:var(--muted)">Racha de estudio</div></div>
+    </div>` : ''}
+    <div class="home-section-label">Oposiciones</div>
+    <div style="display:flex;flex-direction:column;gap:10px">${opCardsHtml}${emptyHtml}</div>
+  `;
+}
+
+/* ── OPOSICION HOME ── */
+function showOposicionHome(opId) {
+  const op = oposiciones[opId];
+  if (!op) return;
+  const opQs = getQuestionsForOposicion(opId);
+  const opFailed = opQs.filter(q => failedIds.has(q.id)).length;
+  const opUnseen = opQs.filter(q => !seenIds.has(q.id)).length;
+  const opExams = savedExams.filter(e => e.oposicion === opId).length;
+  const enoughForExam = opQs.length >= 10;
+
+  const ic = {
+    aleatorio: '<svg viewBox="0 0 18 18" fill="none"><path d="M3 5h2l2 3-2 3H3" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 5h-2l-2 3 2 3h2" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 5h4M7 11h4" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" opacity=".5"/></svg>',
+    exam: '<svg viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="13" height="13" rx="3" stroke="var(--accent)" stroke-width="1.3"/><path d="M5.5 6h7M5.5 9h7M5.5 12h4" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/></svg>',
+    repaso: '<svg viewBox="0 0 18 18" fill="none"><path d="M9 3.5A5.5 5.5 0 1 1 3.5 9" stroke="var(--success)" stroke-width="1.3" stroke-linecap="round"/><path d="M3.5 5.5V9H7" stroke="var(--success)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    falladas: '<svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6.5" stroke="var(--danger)" stroke-width="1.3"/><path d="M9 5.5V10" stroke="var(--danger)" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="12.5" r=".9" fill="var(--danger)"/></svg>',
+    play: '<svg viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.3"/><path d="M4 3.5l3 1.5-3 1.5V3.5z" fill="currentColor"/></svg>',
+    warn: '<svg viewBox="0 0 10 10" fill="none"><path d="M5 1.5l4 7H1l4-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M5 4.5v2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="5" cy="8" r=".5" fill="currentColor"/></svg>'
+  };
+
+  const failedCard = opFailed > 0
+    ? `<div class="mode-card mc-danger" onclick="startFailedQuizForOp('${opId}')">
+        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
+        <div class="mode-title">Repasar falladas</div>
+        <div class="mode-desc">Repasa las preguntas que has fallado en esta oposición.</div>
+        <div class="mode-pill pd">${ic.warn} ${opFailed} pregunta${opFailed!==1?'s':''} pendiente${opFailed!==1?'s':''}</div>
       </div>`
-  }
+    : `<div class="mode-card mc-danger" style="opacity:.5;cursor:default">
+        <div class="mode-icon-wrap ic-danger">${ic.falladas}</div>
+        <div class="mode-title">Repasar falladas</div>
+        <div class="mode-desc">Sin preguntas falladas. ¡Buen trabajo!</div>
+        <div class="mode-pill pd">Sin pendientes</div>
+      </div>`;
+
+  const examCard = enoughForExam
+    ? `<div class="mode-card mc-accent" onclick="startRealExam('${opId}')">
+        <div class="mode-icon-wrap ic-accent">${ic.exam}</div>
+        <div class="mode-title">Simulacro Examen Real</div>
+        <div class="mode-desc">50 preguntas. Penalización por error. Sin corrección hasta el final.</div>
+        <div class="mode-pill pa">${ic.play} Empezar simulacro</div>
+      </div>`
+    : `<div class="mode-card mc-accent" style="opacity:.5;cursor:default">
+        <div class="mode-icon-wrap ic-accent">${ic.exam}</div>
+        <div class="mode-title">Simulacro Examen Real</div>
+        <div class="mode-desc">Necesitas al menos 10 preguntas para hacer un simulacro.</div>
+        <div class="mode-pill pa">${opQs.length}/10 preguntas</div>
+      </div>`;
+
+  const examsBtn = opExams > 0
+    ? `<button class="btn-sec" style="width:100%;margin-top:10px" onclick="showSavedExams('${opId}')">📋 Ver exámenes guardados (${opExams})</button>`
+    : '';
+
+  document.getElementById('main-inner').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem">
+      <button class="wz-back" onclick="navTo('home')">← Inicio</button>
+    </div>
+    <div class="home-hero" style="margin-bottom:1rem">
+      <h1 style="color:${op.color}">${op.icon} ${op.name}</h1>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${opQs.length} preguntas · ${opUnseen} sin ver${opFailed > 0 ? ` · <span style="color:var(--danger-text)">${opFailed} falladas</span>` : ''}</div>
+    </div>
     <div class="home-section-label">Modos de estudio</div>
     <div class="mode-grid">
-      <div class="mode-card mc-amber" onclick="wizardStep0()">
+      ${examCard}
+      <div class="mode-card mc-amber" onclick="wizardStep0('${opId}')">
         <div class="mode-icon-wrap ic-amber">${ic.aleatorio}</div>
-        <div class="mode-title">Test aleatorio</div>
-        <div class="mode-desc">Preguntas mezcladas. Simula el examen real con el número que elijas.</div>
-        <div class="mode-pill pw">${ic.play} Elegir oposición</div>
+        <div class="mode-title">Test Aleatorio</div>
+        <div class="mode-desc">Preguntas mezcladas. Elige el número y el tema.</div>
+        <div class="mode-pill pw">${ic.play} Empezar test</div>
       </div>
-      <div class="mode-card mc-accent" onclick="examWizardStep0()">
-        <div class="mode-icon-wrap ic-accent"><svg viewBox="0 0 18 18" fill="none"><rect x="2.5" y="2.5" width="13" height="13" rx="3" stroke="var(--accent)" stroke-width="1.3"/><path d="M5.5 6h7M5.5 9h7M5.5 12h4" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/></svg></div>
-        <div class="mode-title">Test Real</div>
-        <div class="mode-desc">50 preguntas, examen oficial. Penalización por error. Resultado al finalizar.</div>
-        <div class="mode-pill pa">${ic.play} Elegir oposición</div>
+      <div class="mode-card mc-success" onclick="showReviewForOp('${opId}')">
+        <div class="mode-icon-wrap ic-success">${ic.repaso}</div>
+        <div class="mode-title">Repasar Test</div>
+        <div class="mode-desc">Repasa todas las preguntas de esta oposición por tema.</div>
+        <div class="mode-pill ps">${ic.play} Repasar</div>
+      </div>
+      <div class="mode-card" style="border-color:rgba(74,144,217,0.3)" onclick="startSmartQuiz('${opId}')">
+        <div class="mode-icon-wrap" style="background:rgba(74,144,217,0.12)"><svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="6.5" stroke="#4a90d9" stroke-width="1.3"/><path d="M6.5 7c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5c0 1.2-.85 2.2-2 2.45V11" stroke="#4a90d9" stroke-width="1.3" stroke-linecap="round"/><circle cx="9" cy="13" r=".8" fill="#4a90d9"/></svg></div>
+        <div class="mode-title" style="color:#4a90d9">Repaso Inteligente</div>
+        <div class="mode-desc">Prioriza las preguntas que más has fallado y las que no has visto.</div>
+        <div class="mode-pill" style="background:rgba(74,144,217,0.12);color:#4a90d9">${ic.play} Empezar</div>
       </div>
       ${failedCard}
     </div>
+    ${examsBtn}
   `;
+}
+
+function startFailedQuizForOp(opId) {
+  const opQs = getQuestionsForOposicion(opId);
+  const qs = shuffle(opQs.filter(q => failedIds.has(q.id)));
+  if (qs.length === 0) { alert('No hay preguntas falladas en esta oposición.'); return; }
+  quizState = { questions: qs, index: 0, correct: 0, wrong: 0, shuffled: true, mode: 'failed' };
+  renderQuestion();
+}
+
+function showReviewForOp(opId) {
+  wizardOposicion = opId;
+  currentOposicionFilter = opId;
+  wizardMode = 'repaso';
+  wizardStep1();
 }
 
 /* ── WIZARD — Paso 0: Oposición ── */
 function wizardStep0(preselect) {
-  wizardOposicion = null; wizardSubject = null; wizardUnit = null;
+  wizardOposicion = null; wizardSubject = null; wizardUnit = null; wizardMode = 'aleatorio';
   const opIds = Object.keys(oposiciones).filter(oid => getQuestionsForOposicion(oid).length > 0 || allQuestions.length === 0);
   // If only one oposicion has questions, skip directly
   const opWithQ = opIds.filter(oid => getQuestionsForOposicion(oid).length > 0);
@@ -1381,8 +1527,8 @@ function wizardStep1() {
 
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
-      <button class="wz-back" onclick="wizardStep0()"  >← Atrás</button>
-      <span class="wz-step active" style="color:var(--warning)">Test aleatorio</span>
+      <button class="wz-back" onclick="wizardOposicion ? showOposicionHome(wizardOposicion) : navTo('home')">← Atrás</button>
+      <span class="wz-step active" style="color:var(--warning)">${wizardMode==='repaso'?'Repasar Test':'Test Aleatorio'}</span>
       <span class="wz-sep">›</span>
       <span class="wz-step active" style="color:${opColor}">${opLabel}</span>
       <span class="wz-sep">›</span><span class="wz-step">Asignatura</span>
@@ -1435,7 +1581,7 @@ function wizardStep2(subjectId) {
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
       <button class="wz-back" onclick="wizardStep1()">← Atrás</button>
-      <span class="wz-step" style="color:var(--warning)">Test aleatorio</span>
+      <span class="wz-step" style="color:var(--warning)">${wizardMode==='repaso'?'Repasar Test':'Test Aleatorio'}</span>
       <span class="wz-sep">›</span>
       <span class="wz-step" style="color:${opColor}">${opLabel}</span>
       <span class="wz-sep">›</span>
@@ -1486,7 +1632,7 @@ function wizardStep3() {
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
       <button class="wz-back" onclick="${backTarget}">← Atrás</button>
-      <span class="wz-step" style="color:var(--warning)">Test aleatorio</span>
+      <span class="wz-step" style="color:var(--warning)">${wizardMode==='repaso'?'Repasar Test':'Test Aleatorio'}</span>
       <span class="wz-sep">›</span>
       <span class="wz-step" style="color:${opColor}">${opLabel}</span>
       <span class="wz-sep">›</span>
@@ -1517,7 +1663,7 @@ function wizardStep3() {
         </div>
       </div>
       <div class="wz-confirm-actions">
-        <button class="wz-btn-primary" onclick="wizardStart()">▶ Iniciar test aleatorio</button>
+        <button class="wz-btn-primary" onclick="wizardStart()">${wizardMode==='repaso'?'▶ Iniciar repaso':'▶ Iniciar test aleatorio'}</button>
         <button class="wz-btn-secondary" onclick="navTo('home')">Cancelar</button>
       </div>
     </div>
@@ -1627,6 +1773,10 @@ function selectOption(selected) {
   const fbTitle = document.getElementById('feedback-title');
   const fbBody = document.getElementById('feedback-body');
 
+  // Track question stats
+  if (!questionStats[q.id]) questionStats[q.id] = { asked: 0, wrong: 0 };
+  questionStats[q.id].asked++;
+
   if (selected === correct) {
     quizState.correct++;
     opts[selected].classList.add('correct');
@@ -1636,6 +1786,7 @@ function selectOption(selected) {
     if (failedIds.has(q.id)) { failedIds.delete(q.id); saveData(); fbBody.textContent += ' (Eliminada de falladas ✓)'; }
   } else {
     quizState.wrong++;
+    questionStats[q.id].wrong++;
     opts[selected].classList.add('wrong');
     opts[correct].classList.add('show-correct');
     fb.className = 'feedback visible wrong-fb';
@@ -1643,12 +1794,205 @@ function selectOption(selected) {
     fbBody.textContent = 'Respuesta correcta: ' + ['A','B','C','D'][correct] + '. ' + q.exp;
     failedIds.add(q.id); saveData();
   }
+  updateStreak();
   document.getElementById('btn-next').classList.add('visible');
   buildSidebar();
 }
 
 function nextQuestion() { quizState.index++; renderQuestion(); }
 
+
+
+/* ════════════════════════════════════════════════════════
+   RACHA DE ESTUDIO
+   ════════════════════════════════════════════════════════ */
+async function updateStreak() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (streak.lastDate === today) return;
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  streak.count = streak.lastDate === yesterday ? streak.count + 1 : 1;
+  streak.lastDate = today;
+  saveData();
+  await saveStreakToFirestore();
+  if (streak.count > 1) showSaveToast('🔥 ¡' + streak.count + ' días seguidos estudiando!', 'ok');
+}
+
+async function saveStreakToFirestore() {
+  if (!window._fbDb || !window._fbUser || !window._fbFns) return;
+  try {
+    const { setDoc, doc } = window._fbFns;
+    await setDoc(doc(window._fbDb, 'streaks', window._fbUser.uid), {
+      count: streak.count,
+      lastDate: streak.lastDate,
+      updatedAt: new Date().toISOString()
+    });
+  } catch(e) { console.warn('Error guardando racha:', e.message); }
+}
+
+async function loadStreakFromFirestore() {
+  if (!window._fbDb || !window._fbUser || !window._fbFns) return;
+  try {
+    const { getDoc, doc } = window._fbFns;
+    const snap = await getDoc(doc(window._fbDb, 'streaks', window._fbUser.uid));
+    if (snap.exists()) {
+      const data = snap.data();
+      const fsDate = data.lastDate || null;
+      const localDate = streak.lastDate || null;
+      if (!localDate || (fsDate && fsDate >= localDate)) {
+        streak = { count: data.count || 0, lastDate: fsDate };
+        saveData();
+      }
+    }
+  } catch(e) { console.warn('Error cargando racha:', e.message); }
+}
+
+/* ════════════════════════════════════════════════════════
+   TEMPORIZADOR EXAMEN
+   ════════════════════════════════════════════════════════ */
+function startExamTimer(totalSeconds) {
+  if (examTimer) clearInterval(examTimer);
+  let remaining = totalSeconds;
+  updateTimerDisplay(remaining);
+  examTimer = setInterval(() => {
+    remaining--;
+    updateTimerDisplay(remaining);
+    if (remaining <= 0) {
+      clearInterval(examTimer); examTimer = null;
+      showSaveToast('⏱ ¡Tiempo agotado! Entregando examen...', 'warn');
+      setTimeout(() => finishExam(), 1500);
+    }
+  }, 1000);
+}
+
+function stopExamTimer() {
+  if (examTimer) { clearInterval(examTimer); examTimer = null; }
+}
+
+function updateTimerDisplay(seconds) {
+  const el = document.getElementById('exam-timer');
+  if (!el) return;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  el.textContent = '⏱ ' + m + ':' + s.toString().padStart(2,'0');
+  el.style.color = seconds <= 300 ? 'var(--danger-text)' : seconds <= 600 ? 'var(--warning-text)' : 'var(--muted)';
+}
+
+/* ════════════════════════════════════════════════════════
+   IMPORTAR PREGUNTAS JSON/CSV
+   ════════════════════════════════════════════════════════ */
+function showImport() {
+  document.getElementById('main-inner').innerHTML = `
+    <div class="wz-breadcrumb">
+      <button class="wz-back" onclick="navTo('add')">← Añadir pregunta</button>
+      <span class="wz-step active" style="color:var(--accent)">Importar preguntas</span>
+    </div>
+    <div class="wz-title">📥 Importar preguntas</div>
+    <div class="wz-sub">Carga un fichero JSON o CSV con preguntas en bloque.</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--accent-light)">Formato JSON esperado</div>
+      <pre style="font-size:11px;color:var(--muted);overflow-x:auto;line-height:1.6">[{"q":"Texto","opts":["A","B","C","D"],"correct":0,"exp":"Explicación","subject":"Asignatura","unit":"Tema","oposiciones":["administrativo"]}]</pre>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.25rem">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--accent-light)">Formato CSV (primera fila = cabecera)</div>
+      <pre style="font-size:11px;color:var(--muted);overflow-x:auto;line-height:1.6">pregunta,opcionA,opcionB,opcionC,opcionD,correcta(0-3),explicacion,asignatura,tema,oposiciones(;separadas)</pre>
+    </div>
+    <label style="display:flex;align-items:center;justify-content:center;gap:10px;background:var(--accent-bg);border:2px dashed var(--accent);border-radius:var(--radius);padding:2rem;cursor:pointer"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--accent-bg)'">
+      <input type="file" accept=".json,.csv" style="display:none" onchange="handleImportFile(this)">
+      <span style="font-size:1.5rem">📂</span>
+      <span style="font-size:14px;font-weight:600;color:var(--accent-light)">Seleccionar fichero JSON o CSV</span>
+    </label>
+    <div id="import-result" style="margin-top:1rem"></div>
+  `;
+}
+
+function handleImportFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      let questions = file.name.endsWith('.json') ? JSON.parse(e.target.result) : parseImportCSV(e.target.result);
+      processImportedQuestions(questions);
+    } catch(err) {
+      document.getElementById('import-result').innerHTML =
+        '<div style="color:var(--danger-text);padding:12px;background:var(--danger-bg);border-radius:8px">❌ Error: ' + err.message + '</div>';
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseImportCSV(text) {
+  const lines = text.trim().split('\n').slice(1);
+  return lines.map(line => {
+    const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+    return { q:cols[0], opts:[cols[1],cols[2],cols[3],cols[4]], correct:parseInt(cols[5])||0,
+      exp:cols[6]||'', subject:cols[7]||'', unit:cols[8]||'',
+      oposiciones: cols[9] ? cols[9].split(';').map(s=>s.trim()) : [] };
+  });
+}
+
+function processImportedQuestions(questions) {
+  if (!Array.isArray(questions) || questions.length === 0) {
+    document.getElementById('import-result').innerHTML =
+      '<div style="color:var(--danger-text);padding:12px;background:var(--danger-bg);border-radius:8px">❌ No se encontraron preguntas válidas.</div>';
+    return;
+  }
+  const palette = ['#7f77dd','#1d9e75','#ba7517','#d85a30','#4a90d9','#9b59b6','#e67e22','#16a085'];
+  let imported = 0, skipped = 0;
+  questions.forEach(q => {
+    if (!q.q || !q.opts || q.opts.length < 2) { skipped++; return; }
+    let subjectId = Object.keys(subjects).find(sid => subjects[sid].name === q.subject);
+    if (!subjectId && q.subject) {
+      subjectId = 'subj_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+      const usedColors = new Set(Object.values(subjects).map(s => s.color));
+      const color = palette.find(c => !usedColors.has(c)) || palette[Object.keys(subjects).length % palette.length];
+      subjects[subjectId] = { id: subjectId, name: q.subject, color, oposiciones: q.oposiciones || [] };
+    }
+    let unitId = null;
+    if (subjectId && q.unit) {
+      const existing = allQuestions.find(x => x.subject === subjectId && x.unitName === q.unit);
+      unitId = existing ? existing.unit : ('u_' + Date.now() + '_' + Math.random().toString(36).slice(2,6));
+    }
+    const newQ = { id:'custom_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+      q:q.q, opts:q.opts.slice(0,4), correct:Math.min(parseInt(q.correct)||0,(q.opts.length||1)-1),
+      exp:q.exp||'', subject:subjectId||'', unit:unitId||'', unitName:q.unit||'',
+      oposiciones:q.oposiciones||[], custom:true };
+    customQuestions.push(newQ);
+    shareQuestionToFirestore(newQ);
+    imported++;
+  });
+  allQuestions = BASE_QUESTIONS.concat(customQuestions.filter(q => !q._deleted));
+  saveData();
+  document.getElementById('import-result').innerHTML =
+    '<div style="padding:12px;background:var(--success-bg);border-radius:8px;color:var(--success-text)">✓ <strong>' +
+    imported + ' pregunta' + (imported!==1?'s':'') + ' importada' + (imported!==1?'s':'') + '</strong>' +
+    (skipped>0?' · '+skipped+' omitida'+(skipped!==1?'s':''):'') + '</div>' +
+    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo('home')">Ir al inicio</button>';
+}
+
+/* ════════════════════════════════════════════════════════
+   MODO REPASO INTELIGENTE
+   ════════════════════════════════════════════════════════ */
+function getSmartQuestions(opId, count) {
+  const pool = opId ? getQuestionsForOposicion(opId) : [...allQuestions];
+  const scored = pool.map(q => {
+    const stats = questionStats[q.id] || { asked: 0, wrong: 0 };
+    const wrongRate = stats.asked > 0 ? stats.wrong / stats.asked : 0;
+    const notSeen = !seenIds.has(q.id) ? 1 : 0;
+    const isFailed = failedIds.has(q.id) ? 0.5 : 0;
+    return { q, score: wrongRate * 2 + notSeen + isFailed + Math.random() * 0.3 };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, count).map(x => x.q);
+}
+
+function startSmartQuiz(opId) {
+  const qs = getSmartQuestions(opId, 20);
+  if (qs.length === 0) { alert('No hay preguntas disponibles.'); return; }
+  quizState = { questions: qs, index: 0, correct: 0, wrong: 0, shuffled: true, mode: 'smart' };
+  renderQuestion();
+}
 
 /* ══════════════════════════════════════════════
    TEST REAL — Wizard, Exam Engine, Review, Saved
@@ -1679,7 +2023,7 @@ function examWizardStep0() {
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
       <button class="wz-back" onclick="navTo('home')">← Inicio</button>
-      <span class="wz-step active" style="color:var(--accent)">Test Real</span>
+      <span class="wz-step active" style="color:var(--accent)">Simulacro Examen Real</span>
       <span class="wz-sep">›</span><span class="wz-step">Oposición</span>
     </div>
     <div class="wz-title">¿Para qué oposición?</div>
@@ -1724,6 +2068,9 @@ function startRealExam(opId) {
   examAnswers = new Array(selected.length).fill(-1);
   quizState = { questions: selected, index: 0, correct: 0, wrong: 0, shuffled: true, mode: 'exam', oposicion: opId };
   renderExamQuestion();
+  // 90 min for 50 questions, proportional for fewer
+  const timeLimit = Math.round((selected.length / 50) * 90 * 60);
+  setTimeout(() => startExamTimer(timeLimit), 100);
 }
 
 function renderExamQuestion() {
@@ -1741,8 +2088,9 @@ function renderExamQuestion() {
     <div class="question-container">
       <div class="question-header">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-          <span style="font-size:11px;font-weight:600;padding:2px 10px;border-radius:100px;background:var(--accent-bg);color:var(--accent-light)">📋 TEST REAL</span>
-          <span style="font-size:11px;color:var(--muted);margin-left:auto">${answered} contestadas · ${total - answered - (total - idx - 1)} pendientes</span>
+          <span style="font-size:11px;font-weight:600;padding:2px 10px;border-radius:100px;background:var(--accent-bg);color:var(--accent-light)">📋 SIMULACRO</span>
+          <span id="exam-timer" style="font-size:12px;font-weight:700;color:var(--muted);margin-left:4px"></span>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">${answered} contestadas</span>
         </div>
         <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
         <div class="q-counter">${idx + 1} / ${total}</div>
@@ -1811,6 +2159,7 @@ function confirmFinishExam() {
 }
 
 function finishExam() {
+  stopExamTimer();
   const qs = quizState.questions;
   let correct = 0, wrong = 0, skipped = 0;
   qs.forEach((q, i) => {
@@ -1837,12 +2186,24 @@ function finishExam() {
     answers: examAnswers.slice(),
     correct, wrong, skipped, nota: parseFloat(notaStr)
   };
-  savedExams.unshift(exam);
-  // Keep max 20 exams per user
-  if (savedExams.length > 20) savedExams = savedExams.slice(0, 20);
-  saveData();
+  // Save to Firestore (syncs across devices); local savedExams updated via listener
+  saveExamToFirestore(exam);
+  // Optimistic local insert so results show immediately before Firestore responds
+  if (!savedExams.find(e => e.id === examId)) savedExams.unshift(exam);
 
   showExamResults(examId);
+}
+
+async function deleteExam(examId, opId) {
+  if (!confirm('¿Eliminar este examen? Esta acción no se puede deshacer.')) return;
+  const exam = savedExams.find(e => e.id === examId);
+  if (!exam) return;
+  // Remove from local array immediately
+  savedExams = savedExams.filter(e => e.id !== examId);
+  // Delete from Firestore
+  if (exam._firestoreId) await deleteExamFromFirestore(exam._firestoreId);
+  showSaveToast('🗑 Examen eliminado');
+  showSavedExams(opId);
 }
 
 function showExamResults(examId) {
@@ -1870,8 +2231,8 @@ function showExamResults(examId) {
       </div>
       <div class="results-actions" style="margin-bottom:1.5rem">
         <button class="btn-primary visible" onclick="showExamReview('${examId}')">📋 Revisar examen</button>
-        <button class="btn-sec" onclick="examWizardStep0()">Nuevo Test Real</button>
-        <button class="btn-sec" onclick="showHome();currentNav='home';setActivePill('home');">Inicio</button>
+        <button class="btn-sec" onclick="showOposicionHome('${oposicion}')">Nuevo simulacro</button>
+        <button class="btn-sec" onclick="navTo('home')">Inicio</button>
       </div>
     </div>
   `;
@@ -1946,18 +2307,43 @@ function showSavedExams(opId) {
         <div style="font-size:11px;color:var(--muted);margin-top:2px">${dateStr}</div>
         <div style="font-size:11px;color:var(--muted)">${exam.correct} correctas · ${exam.wrong} incorrectas · ${exam.skipped} en blanco</div>
       </div>
-      <div style="color:var(--muted);font-size:16px">›</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="color:var(--muted);font-size:16px">›</div>
+        <button onclick="event.stopPropagation();deleteExam('${exam.id}','${opId}')" style="background:none;border:none;color:var(--danger-text);cursor:pointer;font-size:16px;padding:4px" title="Eliminar examen">🗑</button>
+      </div>
     </div>`;
   }).join('');
 
+  // Build mini chart of last 10 exams
+  const chartExams = [...exams].reverse().slice(-10);
+  const maxNota = 10;
+  const chartBars = chartExams.map(e => {
+    const h = Math.round((e.nota / maxNota) * 60);
+    const col = e.nota >= 5 ? 'var(--success)' : 'var(--danger)';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1">
+      <div style="font-size:9px;color:var(--muted)">${e.nota.toFixed(1)}</div>
+      <div style="width:100%;height:${h}px;background:${col};border-radius:3px 3px 0 0;min-height:4px"></div>
+    </div>`;
+  }).join('');
+  const chartHtml = chartExams.length > 1 ? `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1.25rem">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Evolución de notas</div>
+      <div style="display:flex;align-items:flex-end;gap:4px;height:80px;padding-bottom:0">${chartBars}</div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px">
+        <span style="font-size:10px;color:var(--muted)">Más antiguo</span>
+        <span style="font-size:10px;color:var(--muted)">Más reciente</span>
+      </div>
+    </div>` : '';
+
   document.getElementById('main-inner').innerHTML = `
     <div class="wz-breadcrumb">
-      <button class="wz-back" onclick="navTo('temario');showTemario('${opId}')">← ${op.name||opId}</button>
+      <button class="wz-back" onclick="showOposicionHome('${opId}')">← ${op.name||opId}</button>
       <span class="wz-step active" style="color:var(--accent)">Exámenes guardados</span>
     </div>
     <div class="wz-title">${op.icon||''} Exámenes realizados</div>
     <div class="wz-sub">${exams.length} examen${exams.length!==1?'es':''} · ${op.name||opId}</div>
-    <div style="margin-top:1.25rem">${cardsHtml}</div>
+    ${chartHtml}
+    <div style="margin-top:0.5rem">${cardsHtml}</div>
   `;
 }
 
@@ -1982,9 +2368,9 @@ function showResults() {
         <div class="result-item fail"><div class="rnum">${wrong}</div><div class="rlabel">Falladas</div></div>
       </div>
       <div class="results-actions">
-        <button class="btn-primary visible" onclick="wizardStep0()">Nuevo test</button>
+        <button class="btn-primary visible" onclick="wizardOposicion ? showOposicionHome(wizardOposicion) : navTo('home')">Volver</button>
         ${failedIds.size > 0 ? `<button class="btn-sec" onclick="startFailedQuiz()">Repasar falladas (${failedIds.size})</button>` : ''}
-        <button class="btn-sec" onclick="showHome();currentNav='home';setActivePill('home');">Inicio</button>
+        <button class="btn-sec" onclick="navTo('home')">Inicio</button>
       </div>
       <div class="subject-quick-label">Cambiar asignatura</div>
       <div class="subject-quick-grid">${buildSubjectQuickCardsHTML()}</div>
@@ -2211,15 +2597,25 @@ function showAdd() {
         </div>
 
         <button class="btn-add" onclick="submitAdd()">💾 Guardar pregunta</button>
+        <div style="text-align:center;margin-top:12px"><button onclick="showImport()" style="background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;text-decoration:underline">📥 Importar preguntas desde JSON/CSV</button></div>
         <div class="toast" id="add-toast">✓ Pregunta añadida correctamente</div>
       </div>
     </div>
   `;
 
-  // Select first color swatch
+  // Auto-select unused color for new subject
   setTimeout(() => {
-    const firstSwatch = document.querySelector('#add-subject-colors div');
-    if (firstSwatch) selectSubjectColor(firstSwatch, '#7f77dd');
+    const palette = ['#7f77dd','#1d9e75','#ba7517','#d85a30','#4a90d9','#9b59b6','#e67e22','#16a085'];
+    const usedColors = new Set(Object.values(subjects).map(s => s.color));
+    const autoColor = palette.find(c => !usedColors.has(c)) || palette[Object.keys(subjects).length % palette.length];
+    const swatch = document.querySelector(`#add-subject-colors div[data-color="${autoColor}"]`);
+    if (swatch) selectSubjectColor(swatch, autoColor);
+    else {
+      const firstSwatch = document.querySelector('#add-subject-colors div');
+      if (firstSwatch) selectSubjectColor(firstSwatch, autoColor);
+      const inp = document.getElementById('add-subject-color');
+      if (inp) inp.value = autoColor;
+    }
     onAddSubjectChange();
   }, 10);
 }
@@ -2370,6 +2766,97 @@ function submitAdd() {
 }
 
 /* ── ADMIN VIEW ── */
+
+/* ── SUBJECT & UNIT MANAGEMENT ── */
+
+function toggleSubjectEdit(sid) {
+  const label = document.getElementById('subj-label-' + sid);
+  const input = document.getElementById('subj-edit-' + sid);
+  const swatches = document.getElementById('subj-swatches-' + sid);
+  const editBtn = document.getElementById('subj-edit-btn-' + sid);
+  const saveBtn = document.getElementById('subj-save-btn-' + sid);
+  const isEditing = input.style.display === 'block';
+  label.style.display = isEditing ? 'inline' : 'none';
+  input.style.display = isEditing ? 'none' : 'block';
+  swatches.style.display = isEditing ? 'none' : 'block';
+  editBtn.style.display = isEditing ? 'inline' : 'none';
+  saveBtn.style.display = isEditing ? 'none' : 'inline';
+}
+
+function selectEditSubjectColor(el, color, sid) {
+  document.querySelectorAll(`#subj-swatches-${sid} div`).forEach(d => d.style.borderColor = 'transparent');
+  el.style.borderColor = '#fff';
+  const inp = document.getElementById('subj-color-' + sid);
+  if (inp) inp.value = color;
+}
+
+function saveSubjectEdit(sid) {
+  const nameInput = document.getElementById('subj-edit-' + sid);
+  const colorInput = document.getElementById('subj-color-' + sid);
+  const newName = (nameInput.value || '').trim();
+  const newColor = colorInput.value || subjects[sid].color;
+  if (!newName) { alert('El nombre no puede estar vacío.'); return; }
+  subjects[sid].name = newName;
+  subjects[sid].color = newColor;
+  saveData();
+  showSaveToast('✓ Asignatura actualizada');
+  showAdmin();
+}
+
+function deleteSubject(sid) {
+  const s = subjects[sid];
+  const qCount = allQuestions.filter(q => q.subject === sid).length;
+  if (!confirm(`¿Eliminar la asignatura "${s.name}"?${qCount > 0 ? `
+
+Tiene ${qCount} pregunta${qCount!==1?'s':''} asociadas que quedarán sin asignatura.` : ''}`)) return;
+  delete subjects[sid];
+  saveData();
+  showSaveToast('🗑 Asignatura eliminada');
+  showAdmin();
+}
+
+function toggleUnitEdit(uid) {
+  const label = document.getElementById('unit-label-' + uid);
+  const input = document.getElementById('unit-edit-' + uid);
+  const editBtn = document.getElementById('unit-edit-btn-' + uid);
+  const saveBtn = document.getElementById('unit-save-btn-' + uid);
+  const isEditing = input.style.display === 'block';
+  label.style.display = isEditing ? 'inline' : 'none';
+  input.style.display = isEditing ? 'none' : 'block';
+  editBtn.style.display = isEditing ? 'inline' : 'none';
+  saveBtn.style.display = isEditing ? 'none' : 'inline';
+}
+
+function saveUnitName(uid, sid) {
+  const input = document.getElementById('unit-edit-' + uid);
+  const newName = (input.value || '').trim();
+  if (!newName) { alert('El nombre del tema no puede estar vacío.'); return; }
+  // Update all questions that use this unit
+  let changed = 0;
+  allQuestions.forEach(q => {
+    if (q.unit === uid) { q.unitName = newName; changed++; }
+  });
+  // Update customQuestions too
+  customQuestions.forEach(q => { if (q.unit === uid) q.unitName = newName; });
+  saveData();
+  showSaveToast(`✓ Tema renombrado (${changed} pregunta${changed!==1?'s':''})`);
+  showAdmin();
+}
+
+function deleteUnit(uid, sid) {
+  const qCount = allQuestions.filter(q => q.unit === uid).length;
+  const unitName = (allQuestions.find(q => q.unit === uid) || {}).unitName || uid;
+  if (!confirm(`¿Eliminar el tema "${unitName}"?${qCount > 0 ? `
+
+Tiene ${qCount} pregunta${qCount!==1?'s':''} asociadas que quedarán sin tema.` : ''}`)) return;
+  // Remove unit from all questions (mark as orphan)
+  allQuestions.forEach(q => { if (q.unit === uid) q.unit = '__orphan__'; });
+  customQuestions.forEach(q => { if (q.unit === uid) q.unit = '__orphan__'; });
+  saveData();
+  showSaveToast('🗑 Tema eliminado');
+  showAdmin();
+}
+
 function showAdmin() {
   const inner = document.getElementById('main-inner');
   const subjectOptions = `<option value="all">Todas las asignaturas</option>` + Object.entries(subjects).map(([id,s]) => `<option value="${id}" ${adminSubjectFilter===id?'selected':''}>${s.name}</option>`).join('');
@@ -2382,6 +2869,43 @@ function showAdmin() {
     <div class="admin-page">
       <h2>Administrar preguntas</h2>
       <p class="form-subtitle">Edita o elimina cualquier pregunta. Los cambios se guardan localmente.</p>
+      <details style="margin-bottom:1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0">
+        <summary style="padding:12px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--accent-light);list-style:none;display:flex;align-items:center;gap:8px">
+          ✏️ Gestionar asignaturas y temas
+        </summary>
+        <div style="padding:0 16px 16px 16px;border-top:1px solid var(--border)">
+          ${Object.values(subjects).length === 0 ? '<div style="color:var(--muted);font-size:12px;padding-top:12px">No hay asignaturas creadas todavía.</div>' :
+            Object.values(subjects).map(s => {
+              const units = getUnitsForSubject(s.id);
+              const palette = ['#7f77dd','#1d9e75','#ba7517','#d85a30','#4a90d9','#9b59b6','#e67e22','#16a085'];
+              const swatches = palette.map(c => `<div onclick="selectEditSubjectColor(this,'${c}','${s.id}')" data-color="${c}"
+                style="width:20px;height:20px;border-radius:50%;background:${c};cursor:pointer;display:inline-block;border:2px solid ${c===s.color?'#fff':'transparent'};transition:border-color 0.15s;margin-right:4px"
+                onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform=''"></div>`).join('');
+              const unitsHtml = units.map(u => `
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+                  <span style="font-size:12px;flex:1;color:var(--muted)" id="unit-label-${u.unit}">${escHtml(u.name)}</span>
+                  <input class="form-input" id="unit-edit-${u.unit}" value="${escHtml(u.name)}" style="display:none;flex:1;padding:3px 8px;font-size:12px">
+                  <button onclick="toggleUnitEdit('${u.unit}')" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer" id="unit-edit-btn-${u.unit}">✏️ Editar</button>
+                  <button onclick="saveUnitName('${u.unit}','${s.id}')" style="font-size:11px;color:var(--success-text);background:none;border:none;cursor:pointer;display:none" id="unit-save-btn-${u.unit}">💾 Guardar</button>
+                  <button onclick="deleteUnit('${u.unit}','${s.id}')" style="font-size:11px;color:var(--danger-text);background:none;border:none;cursor:pointer">🗑 Eliminar</button>
+                </div>`).join('');
+              return `<div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px;border-left:3px solid ${s.color}">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+                  <span style="font-weight:700;color:${s.color};font-size:13px" id="subj-label-${s.id}">${escHtml(s.name)}</span>
+                  <input class="form-input" id="subj-edit-${s.id}" value="${escHtml(s.name)}" style="display:none;max-width:220px;padding:3px 8px;font-size:12px">
+                  <div id="subj-swatches-${s.id}" style="display:none">${swatches}</div>
+                  <input type="hidden" id="subj-color-${s.id}" value="${s.color}">
+                  <button onclick="toggleSubjectEdit('${s.id}')" style="font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer" id="subj-edit-btn-${s.id}">✏️ Editar</button>
+                  <button onclick="saveSubjectEdit('${s.id}')" style="font-size:11px;color:var(--success-text);background:none;border:none;cursor:pointer;display:none" id="subj-save-btn-${s.id}">💾 Guardar</button>
+                  <button onclick="deleteSubject('${s.id}')" style="font-size:11px;color:var(--danger-text);background:none;border:none;cursor:pointer;margin-left:auto">🗑 Eliminar asignatura</button>
+                </div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${units.length} tema${units.length!==1?'s':''}</div>
+                ${unitsHtml || '<div style="font-size:11px;color:var(--muted)">Sin temas</div>'}
+              </div>`;
+            }).join('')
+          }
+        </div>
+      </details>
       <div class="admin-filters">
         <select class="form-select" style="width:200px" onchange="adminSubjectFilter=this.value;adminUnitFilter='all';showAdmin()">${subjectOptions}</select>
         <select class="form-select" style="width:200px" onchange="adminUnitFilter=this.value;showAdmin()">${unitOptions}</select>
