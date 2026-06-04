@@ -16,7 +16,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, deleteDoc, setDoc, getDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAza4dzi5lj17OcDIaLthBDX5jGXZtm6GM",
@@ -34,7 +34,7 @@
   // Hacemos auth y db accesibles desde el resto del código
   window._fbAuth = auth;
   window._fbDb = db;
-  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp };
+  window._fbFns = { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, collection, addDoc, deleteDoc, setDoc, getDoc, doc, onSnapshot, query, orderBy, where, getDocs, serverTimestamp };
 
   // Escuchar cambios de sesión Firebase
   onAuthStateChanged(auth, (user) => {
@@ -834,6 +834,7 @@ function startSession(session) {
   listenSharedQuestions();
   listenTemario();
   listenSavedExams();
+  loadStreakFromFirestore();
   showHome();
 }
 
@@ -1805,14 +1806,44 @@ function nextQuestion() { quizState.index++; renderQuestion(); }
 /* ════════════════════════════════════════════════════════
    RACHA DE ESTUDIO
    ════════════════════════════════════════════════════════ */
-function updateStreak() {
+async function updateStreak() {
   const today = new Date().toISOString().slice(0, 10);
   if (streak.lastDate === today) return;
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   streak.count = streak.lastDate === yesterday ? streak.count + 1 : 1;
   streak.lastDate = today;
   saveData();
+  await saveStreakToFirestore();
   if (streak.count > 1) showSaveToast('🔥 ¡' + streak.count + ' días seguidos estudiando!', 'ok');
+}
+
+async function saveStreakToFirestore() {
+  if (!window._fbDb || !window._fbUser || !window._fbFns) return;
+  try {
+    const { setDoc, doc } = window._fbFns;
+    await setDoc(doc(window._fbDb, 'streaks', window._fbUser.uid), {
+      count: streak.count,
+      lastDate: streak.lastDate,
+      updatedAt: new Date().toISOString()
+    });
+  } catch(e) { console.warn('Error guardando racha:', e.message); }
+}
+
+async function loadStreakFromFirestore() {
+  if (!window._fbDb || !window._fbUser || !window._fbFns) return;
+  try {
+    const { getDoc, doc } = window._fbFns;
+    const snap = await getDoc(doc(window._fbDb, 'streaks', window._fbUser.uid));
+    if (snap.exists()) {
+      const data = snap.data();
+      const fsDate = data.lastDate || null;
+      const localDate = streak.lastDate || null;
+      if (!localDate || (fsDate && fsDate >= localDate)) {
+        streak = { count: data.count || 0, lastDate: fsDate };
+        saveData();
+      }
+    }
+  } catch(e) { console.warn('Error cargando racha:', e.message); }
 }
 
 /* ════════════════════════════════════════════════════════
@@ -1937,7 +1968,7 @@ function processImportedQuestions(questions) {
     '<div style="padding:12px;background:var(--success-bg);border-radius:8px;color:var(--success-text)">✓ <strong>' +
     imported + ' pregunta' + (imported!==1?'s':'') + ' importada' + (imported!==1?'s':'') + '</strong>' +
     (skipped>0?' · '+skipped+' omitida'+(skipped!==1?'s':''):'') + '</div>' +
-    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo(&quot;home&quot;)">Ir al inicio</button>';
+    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo('home')">Ir al inicio</button>';
 }
 
 /* ════════════════════════════════════════════════════════
