@@ -1299,16 +1299,17 @@ function showOposicionesList() {
     const examsChip = opExams > 0
       ? ' · <span style="color:var(--success-text)">' + opExams + ' examen' + (opExams!==1?'es':'') + '</span>'
       : '';
-    return `<div class="op-home-card" onclick="showOposicionHome('${op.id}')" style="border-left:4px solid ${op.color}">
-      <div style="display:flex;align-items:center;gap:12px">
-        <span style="font-size:2rem;line-height:1">${op.icon}</span>
-        <div style="flex:1">
-          <div style="font-family:'Syne',system-ui,sans-serif;font-weight:800;font-size:1rem;color:${op.color}">${op.name}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${opQs.length} preguntas` + examsChip + `</div>
-        </div>
-        <span style="font-size:1.2rem;color:var(--muted)">›</span>
-      </div>` + statsHtml + `
-    </div>`;
+    return '<div class="op-home-card" onclick="showOposicionHome('' + op.id + '')" style="border-left:4px solid ' + op.color + '">'
+      + '<div style="display:flex;align-items:center;gap:12px">'
+      + '<span style="font-size:2rem;line-height:1">' + op.icon + '</span>'
+      + '<div style="flex:1">'
+      + '<div style="font-family:'Syne',system-ui,sans-serif;font-weight:800;font-size:1rem;color:' + op.color + '">' + op.name + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);margin-top:2px">' + opQs.length + ' preguntas' + examsChip + '</div>'
+      + '</div>'
+      + '<span style="font-size:1.2rem;color:var(--muted)">›</span>'
+      + '</div>'
+      + statsHtml
+      + '</div>';
   }).join('');
 
   const emptyHtml = Object.keys(oposiciones).length === 0
@@ -1972,7 +1973,7 @@ function processImportedQuestions(questions) {
     '<div style="padding:12px;background:var(--success-bg);border-radius:8px;color:var(--success-text)">✓ <strong>' +
     imported + ' pregunta' + (imported!==1?'s':'') + ' importada' + (imported!==1?'s':'') + '</strong>' +
     (skipped>0?' · '+skipped+' omitida'+(skipped!==1?'s':''):'') + '</div>' +
-    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo('home')">Ir al inicio</button>';
+    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo(&apos;home&apos;)">Ir al inicio</button>';
 }
 
 /* ════════════════════════════════════════════════════════
