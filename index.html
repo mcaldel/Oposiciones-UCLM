@@ -871,8 +871,7 @@ function listenSavedExams() {
   if (!window._fbDb || !window._fbFns || !window._fbUser) return;
   if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
 
-  // Usamos sólo where() sin orderBy() para evitar necesitar índice compuesto en Firestore.
-  // Ordenamos por fecha en el cliente.
+  // Solo where() sin orderBy() — evita necesitar índice compuesto en Firestore
   const { collection, onSnapshot, query, where } = window._fbFns;
   const q = query(
     collection(window._fbDb, 'savedExams'),
@@ -899,13 +898,18 @@ function listenSavedExams() {
     });
     // Ordenar por fecha descendente en el cliente
     savedExams.sort((a, b) => new Date(b.date) - new Date(a.date));
-    if (currentNav === 'home') showHome();
+    // Refrescar home solo si está visible — nunca interrumpir resultados/revisión de examen
+    if (currentNav === 'home' && !document.querySelector('.results-screen') && !document.querySelector('.exam-review-header')) {
+      showHome();
+    }
   }, (error) => {
     console.warn('Error escuchando exámenes:', error);
-    // Fallback localStorage si Firestore falla
+    // Fallback: cargar desde localStorage si Firestore falla
     try {
-      const local = localStorage.getItem('et_savedExams_' + window._fbUser.uid);
-      if (local) { savedExams = JSON.parse(local); savedExams.sort((a,b) => new Date(b.date)-new Date(a.date)); }
+      if (window._fbUser) {
+        const local = localStorage.getItem('et_savedExams_' + window._fbUser.uid);
+        if (local) { savedExams = JSON.parse(local); savedExams.sort((a,b) => new Date(b.date)-new Date(a.date)); }
+      }
     } catch(e) {}
   });
 }
@@ -916,7 +920,7 @@ async function saveExamToFirestore(exam) {
     if (window._fbUser) {
       const key = 'et_savedExams_' + window._fbUser.uid;
       const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      existing.unshift(exam);
+      if (!existing.find(e => e.id === exam.id)) existing.unshift(exam);
       localStorage.setItem(key, JSON.stringify(existing.slice(0, 30)));
     }
   } catch(e) {}
@@ -2314,11 +2318,10 @@ function showSavedExams(opId) {
         <button class="wz-back" onclick="showOposicionHome('${opId}')">← ${op.name||opId}</button>
         <span class="wz-step active" style="color:var(--accent)">Exámenes guardados</span>
       </div>
-      <div class="wz-title">${op.icon||''} Exámenes realizados</div>
       <div style="text-align:center;padding:3rem 1rem;color:var(--muted)">
         <div style="font-size:2.5rem;margin-bottom:12px">📭</div>
-        <div style="font-size:14px;font-weight:600;margin-bottom:6px">Sin exámenes guardados</div>
-        <div style="font-size:13px">Haz un Test Real para ver tus resultados aquí.</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">Sin exámenes guardados</div>
+        <div style="font-size:13px">Completa un Test Real para ver tus resultados aquí.</div>
         <button class="btn-primary visible" style="margin-top:1.5rem;background:var(--success)" onclick="startRealExam('${opId}')">📋 Hacer Test Real</button>
       </div>
     `;
