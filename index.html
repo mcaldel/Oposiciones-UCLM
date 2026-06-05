@@ -871,11 +871,11 @@ function listenSavedExams() {
   if (!window._fbDb || !window._fbFns || !window._fbUser) return;
   if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
 
-  // Sin orderBy — evita índice compuesto en Firestore; se ordena en cliente
-  const { collection, onSnapshot, query, where } = window._fbFns;
+  const { collection, onSnapshot, query, orderBy, where } = window._fbFns;
   const q = query(
     collection(window._fbDb, 'savedExams'),
-    where('userId', '==', window._fbUser.uid)
+    where('userId', '==', window._fbUser.uid),
+    orderBy('createdAt', 'desc')
   );
 
   _examsUnsubscribe = onSnapshot(q, (snapshot) => {
@@ -896,32 +896,14 @@ function listenSavedExams() {
         nota: data.nota
       });
     });
-    savedExams.sort((a, b) => new Date(b.date) - new Date(a.date));
-    // No interrumpir si el usuario está viendo resultados de examen
-    if (currentNav === 'home' && !document.querySelector('.results-screen') && !document.querySelector('.exam-review-header')) {
-      showHome();
-    }
+    // Refresh oposicion home if open
+    if (currentNav === 'home') showHome();
   }, (error) => {
     console.warn('Error escuchando exámenes:', error);
-    try {
-      if (window._fbUser) {
-        const local = localStorage.getItem('et_savedExams_' + window._fbUser.uid);
-        if (local) { savedExams = JSON.parse(local); savedExams.sort((a,b)=>new Date(b.date)-new Date(a.date)); }
-      }
-    } catch(e) {}
   });
 }
 
 async function saveExamToFirestore(exam) {
-  // Backup inmediato en localStorage
-  try {
-    if (window._fbUser) {
-      const key = 'et_savedExams_' + window._fbUser.uid;
-      const existing = JSON.parse(localStorage.getItem(key) || '[]');
-      if (!existing.find(e => e.id === exam.id)) existing.unshift(exam);
-      localStorage.setItem(key, JSON.stringify(existing.slice(0, 30)));
-    }
-  } catch(e) {}
   if (!window._fbDb || !window._fbUser || !currentUser) return;
   try {
     const { collection, addDoc, serverTimestamp } = window._fbFns;
@@ -932,6 +914,7 @@ async function saveExamToFirestore(exam) {
     });
   } catch(e) {
     console.warn('Error guardando examen en Firestore:', e.message);
+    // Fallback: keep in localStorage only
   }
 }
 
@@ -1249,10 +1232,12 @@ function resetSeenIds() {
 }
 
 function navTo(view) {
-  // Warn if leaving an active exam
-  if (quizState && quizState.mode === 'exam') {
+  // Avisar solo si el examen está EN CURSO (no terminado ni guardado)
+  if (quizState && quizState.mode === 'exam' && !quizState.finished) {
     if (!confirm('¿Salir del simulacro? El examen no se guardará.')) return;
     quizState = null;
+  } else if (quizState && quizState.finished) {
+    quizState = null; // limpiar sin avisar — ya está guardado
   }
   currentNav = view; setActivePill(view);
   if (view === 'home') showHome();
@@ -1985,7 +1970,7 @@ function processImportedQuestions(questions) {
     '<div style="padding:12px;background:var(--success-bg);border-radius:8px;color:var(--success-text)">✓ <strong>' +
     imported + ' pregunta' + (imported!==1?'s':'') + ' importada' + (imported!==1?'s':'') + '</strong>' +
     (skipped>0?' · '+skipped+' omitida'+(skipped!==1?'s':''):'') + '</div>' +
-    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo(\'home\')">Ir al inicio</button>';
+    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo('home')">Ir al inicio</button>';
 }
 
 /* ════════════════════════════════════════════════════════
@@ -2065,7 +2050,7 @@ function startRealExam(opId) {
     byUnit[q.unit].push(q);
   });
   const units = Object.keys(byUnit);
-  const TOTAL = qs.length; // usa todas las disponibles (máx útil: 50)
+  const TOTAL = Math.min(50, qs.length);
 
   // Shuffle each unit pool independently
   units.forEach(uid => { byUnit[uid] = shuffle(byUnit[uid]); });
@@ -2186,11 +2171,8 @@ function finishExam() {
     else wrong++;
   });
 
-  // Puntuación proporcional: se escala al equivalente de 50 preguntas
-  // Ej: con 10 preguntas correcta vale +1pt, con 50 vale +0.2pt
-  const totalQs = qs.length;
-  const factor = totalQs > 0 ? 50 / totalQs : 1;
-  const rawScore = (correct * 0.2 - wrong * 0.05) * factor;
+  // Score: +0.2 correct, -0.05 wrong, max 10
+  const rawScore = correct * 0.2 - wrong * 0.05;
   const nota = Math.max(0, Math.min(10, rawScore));
   const notaStr = nota.toFixed(2);
   const pass = nota >= 5;
@@ -2210,6 +2192,9 @@ function finishExam() {
   saveExamToFirestore(exam);
   // Optimistic local insert so results show immediately before Firestore responds
   if (!savedExams.find(e => e.id === examId)) savedExams.unshift(exam);
+
+  // Marcar como terminado para que navTo() no muestre el aviso de "no se guardará"
+  if (quizState) quizState.finished = true;
 
   showExamResults(examId);
 }
@@ -2245,11 +2230,10 @@ function showExamResults(examId) {
       </div>
       <div class="results-breakdown" style="margin-bottom:1.5rem">
         <div class="result-item total"><div class="rnum">${total}</div><div class="rlabel">Preguntas</div></div>
-        <div class="result-item ok"><div class="rnum">${correct}</div><div class="rlabel">Correctas<br><span style="font-size:10px;opacity:.7">+${(correct*0.2*(50/total)).toFixed(2)} pts</span></div></div>
-        <div class="result-item fail"><div class="rnum">${wrong}</div><div class="rlabel">Incorrectas<br><span style="font-size:10px;opacity:.7">-${(wrong*0.05*(50/total)).toFixed(2)} pts</span></div></div>
+        <div class="result-item ok"><div class="rnum">${correct}</div><div class="rlabel">Correctas<br><span style="font-size:10px;opacity:.7">+${(correct*0.2).toFixed(2)} pts</span></div></div>
+        <div class="result-item fail"><div class="rnum">${wrong}</div><div class="rlabel">Incorrectas<br><span style="font-size:10px;opacity:.7">-${(wrong*0.05).toFixed(2)} pts</span></div></div>
         <div class="result-item total"><div class="rnum" style="color:var(--muted)">${skipped}</div><div class="rlabel">En blanco</div></div>
       </div>
-      ${total < 50 ? '<div style="font-size:11px;color:var(--muted);text-align:center;margin:-0.5rem 0 1rem;padding:6px 12px;background:var(--surface2);border-radius:var(--radius-sm)">⚖️ Nota escalada sobre 10 (' + total + ' preguntas)</div>' : ''}
       <div class="results-actions" style="margin-bottom:1.5rem">
         <button class="btn-primary visible" onclick="showExamReview('${examId}')">📋 Revisar examen</button>
         <button class="btn-sec" onclick="showOposicionHome('${oposicion}')">Nuevo simulacro</button>
@@ -2314,18 +2298,7 @@ function showSavedExams(opId) {
   const exams = savedExams.filter(e => e.oposicion === opId);
   const op = oposiciones[opId] || {};
   if (exams.length === 0) {
-    document.getElementById('main-inner').innerHTML = `
-      <div class="wz-breadcrumb">
-        <button class="wz-back" onclick="showOposicionHome('${opId}')">← ${op.name||opId}</button>
-        <span class="wz-step active" style="color:var(--accent)">Exámenes guardados</span>
-      </div>
-      <div style="text-align:center;padding:3rem 1rem;color:var(--muted)">
-        <div style="font-size:2.5rem;margin-bottom:12px">📭</div>
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">Sin exámenes guardados</div>
-        <div style="font-size:13px">Completa un Test Real para ver tus resultados aquí.</div>
-        <button class="btn-primary visible" style="margin-top:1.5rem;background:var(--success)" onclick="startRealExam('${opId}')">📋 Hacer Test Real</button>
-      </div>
-    `;
+    alert('No hay exámenes guardados para esta oposición todavía.');
     return;
   }
 
