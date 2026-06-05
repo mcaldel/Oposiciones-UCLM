@@ -1251,7 +1251,7 @@ function resetSeenIds() {
 function navTo(view) {
   // Warn if leaving an active exam
   if (quizState && quizState.mode === 'exam') {
-    if (!confirm('¿Salir del simulacro? El examen no se guardará.')) return;
+    if (!confirm('¿Salir del simulacro? El examen se guardará en tu historial.')) return;
     quizState = null;
   }
   currentNav = view; setActivePill(view);
