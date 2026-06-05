@@ -871,7 +871,7 @@ function listenSavedExams() {
   if (!window._fbDb || !window._fbFns || !window._fbUser) return;
   if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
 
-  // Sin orderBy para evitar índice compuesto en Firestore — se ordena en cliente
+  // Sin orderBy — evita índice compuesto en Firestore; se ordena en cliente
   const { collection, onSnapshot, query, where } = window._fbFns;
   const q = query(
     collection(window._fbDb, 'savedExams'),
@@ -896,9 +896,8 @@ function listenSavedExams() {
         nota: data.nota
       });
     });
-    // Ordenar por fecha desc en cliente
     savedExams.sort((a, b) => new Date(b.date) - new Date(a.date));
-    // Solo refrescar home si NO está mostrando resultados de examen
+    // No interrumpir si el usuario está viendo resultados de examen
     if (currentNav === 'home' && !document.querySelector('.results-screen') && !document.querySelector('.exam-review-header')) {
       showHome();
     }
@@ -1355,7 +1354,7 @@ function showOposicionHome(opId) {
   const opFailed = opQs.filter(q => failedIds.has(q.id)).length;
   const opUnseen = opQs.filter(q => !seenIds.has(q.id)).length;
   const opExams = savedExams.filter(e => e.oposicion === opId).length;
-  const enoughForExam = opQs.length >= 50;
+  const enoughForExam = opQs.length >= 10;
 
   const ic = {
     aleatorio: '<svg viewBox="0 0 18 18" fill="none"><path d="M3 5h2l2 3-2 3H3" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 5h-2l-2 3 2 3h2" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 5h4M7 11h4" stroke="var(--warning)" stroke-width="1.3" stroke-linecap="round" opacity=".5"/></svg>',
@@ -1390,8 +1389,8 @@ function showOposicionHome(opId) {
     : `<div class="mode-card mc-accent" style="opacity:.5;cursor:default">
         <div class="mode-icon-wrap ic-accent">${ic.exam}</div>
         <div class="mode-title">Simulacro Examen Real</div>
-        <div class="mode-desc">Necesitas al menos 50 preguntas para hacer un simulacro.</div>
-        <div class="mode-pill pa">${opQs.length}/50 preguntas</div>
+        <div class="mode-desc">Necesitas al menos 10 preguntas para hacer un simulacro.</div>
+        <div class="mode-pill pa">${opQs.length}/10 preguntas</div>
       </div>`;
 
   const examsBtn = opExams > 0
@@ -2066,7 +2065,7 @@ function startRealExam(opId) {
     byUnit[q.unit].push(q);
   });
   const units = Object.keys(byUnit);
-  const TOTAL = Math.min(50, qs.length);
+  const TOTAL = qs.length; // usa todas las disponibles (máx útil: 50)
 
   // Shuffle each unit pool independently
   units.forEach(uid => { byUnit[uid] = shuffle(byUnit[uid]); });
@@ -2187,8 +2186,11 @@ function finishExam() {
     else wrong++;
   });
 
-  // Score: +0.2 correct, -0.05 wrong, max 10
-  const rawScore = correct * 0.2 - wrong * 0.05;
+  // Puntuación proporcional: se escala al equivalente de 50 preguntas
+  // Ej: con 10 preguntas correcta vale +1pt, con 50 vale +0.2pt
+  const totalQs = qs.length;
+  const factor = totalQs > 0 ? 50 / totalQs : 1;
+  const rawScore = (correct * 0.2 - wrong * 0.05) * factor;
   const nota = Math.max(0, Math.min(10, rawScore));
   const notaStr = nota.toFixed(2);
   const pass = nota >= 5;
@@ -2243,10 +2245,11 @@ function showExamResults(examId) {
       </div>
       <div class="results-breakdown" style="margin-bottom:1.5rem">
         <div class="result-item total"><div class="rnum">${total}</div><div class="rlabel">Preguntas</div></div>
-        <div class="result-item ok"><div class="rnum">${correct}</div><div class="rlabel">Correctas<br><span style="font-size:10px;opacity:.7">+${(correct*0.2).toFixed(2)} pts</span></div></div>
-        <div class="result-item fail"><div class="rnum">${wrong}</div><div class="rlabel">Incorrectas<br><span style="font-size:10px;opacity:.7">-${(wrong*0.05).toFixed(2)} pts</span></div></div>
+        <div class="result-item ok"><div class="rnum">${correct}</div><div class="rlabel">Correctas<br><span style="font-size:10px;opacity:.7">+${(correct*0.2*(50/total)).toFixed(2)} pts</span></div></div>
+        <div class="result-item fail"><div class="rnum">${wrong}</div><div class="rlabel">Incorrectas<br><span style="font-size:10px;opacity:.7">-${(wrong*0.05*(50/total)).toFixed(2)} pts</span></div></div>
         <div class="result-item total"><div class="rnum" style="color:var(--muted)">${skipped}</div><div class="rlabel">En blanco</div></div>
       </div>
+      ${total < 50 ? '<div style="font-size:11px;color:var(--muted);text-align:center;margin:-0.5rem 0 1rem;padding:6px 12px;background:var(--surface2);border-radius:var(--radius-sm)">⚖️ Nota escalada sobre 10 (' + total + ' preguntas)</div>' : ''}
       <div class="results-actions" style="margin-bottom:1.5rem">
         <button class="btn-primary visible" onclick="showExamReview('${examId}')">📋 Revisar examen</button>
         <button class="btn-sec" onclick="showOposicionHome('${oposicion}')">Nuevo simulacro</button>
