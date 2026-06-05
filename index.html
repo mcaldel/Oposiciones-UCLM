@@ -871,7 +871,7 @@ function listenSavedExams() {
   if (!window._fbDb || !window._fbFns || !window._fbUser) return;
   if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
 
-  // Solo where() sin orderBy() — evita necesitar índice compuesto en Firestore
+  // Sin orderBy para evitar índice compuesto — se ordena en cliente
   const { collection, onSnapshot, query, where } = window._fbFns;
   const q = query(
     collection(window._fbDb, 'savedExams'),
@@ -896,26 +896,26 @@ function listenSavedExams() {
         nota: data.nota
       });
     });
-    // Ordenar por fecha descendente en el cliente
+    // Ordenar por fecha desc en cliente
     savedExams.sort((a, b) => new Date(b.date) - new Date(a.date));
-    // Refrescar home solo si está visible — nunca interrumpir resultados/revisión de examen
+    // Solo refrescar home si NO está mostrando resultados de examen
     if (currentNav === 'home' && !document.querySelector('.results-screen') && !document.querySelector('.exam-review-header')) {
       showHome();
     }
   }, (error) => {
     console.warn('Error escuchando exámenes:', error);
-    // Fallback: cargar desde localStorage si Firestore falla
+    // Fallback localStorage
     try {
       if (window._fbUser) {
         const local = localStorage.getItem('et_savedExams_' + window._fbUser.uid);
-        if (local) { savedExams = JSON.parse(local); savedExams.sort((a,b) => new Date(b.date)-new Date(a.date)); }
+        if (local) { savedExams = JSON.parse(local); savedExams.sort((a,b)=>new Date(b.date)-new Date(a.date)); }
       }
     } catch(e) {}
   });
 }
 
 async function saveExamToFirestore(exam) {
-  // Guardar siempre en localStorage como respaldo inmediato
+  // Guardar en localStorage como respaldo inmediato
   try {
     if (window._fbUser) {
       const key = 'et_savedExams_' + window._fbUser.uid;
@@ -924,7 +924,6 @@ async function saveExamToFirestore(exam) {
       localStorage.setItem(key, JSON.stringify(existing.slice(0, 30)));
     }
   } catch(e) {}
-
   if (!window._fbDb || !window._fbUser || !currentUser) return;
   try {
     const { collection, addDoc, serverTimestamp } = window._fbFns;
