@@ -1288,21 +1288,26 @@ function showOposicionesList() {
     const opUnseen = opQs.filter(q => !seenIds.has(q.id)).length;
     const opExams = savedExams.filter(e => e.oposicion === op.id).length;
     const opOk = opQs.length - opFailed;
+    const statsHtml = opQs.length > 0
+      ? '<div class="stats-grid" style="margin:8px 0 0;gap:6px">'
+        + '<div class="stat-card" style="padding:8px 10px"><div class="stat-num" style="font-size:1.1rem">' + opQs.length + '</div><div class="stat-label">Total</div></div>'
+        + '<div class="stat-card" style="padding:8px 10px"><div class="stat-num success" style="font-size:1.1rem">' + opOk + '</div><div class="stat-label">Sin fallar</div></div>'
+        + '<div class="stat-card" style="padding:8px 10px"><div class="stat-num danger" style="font-size:1.1rem">' + opFailed + '</div><div class="stat-label">Falladas</div></div>'
+        + '<div class="stat-card" style="padding:8px 10px"><div class="stat-num" style="font-size:1.1rem;color:var(--warning-text)">' + opUnseen + '</div><div class="stat-label">Sin ver</div></div>'
+        + '</div>'
+      : '';
+    const examsChip = opExams > 0
+      ? ' · <span style="color:var(--success-text)">' + opExams + ' examen' + (opExams!==1?'es':'') + '</span>'
+      : '';
     return `<div class="op-home-card" onclick="showOposicionHome('${op.id}')" style="border-left:4px solid ${op.color}">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:${opQs.length>0?'10px':'0'}">
+      <div style="display:flex;align-items:center;gap:12px">
         <span style="font-size:2rem;line-height:1">${op.icon}</span>
         <div style="flex:1">
           <div style="font-family:'Syne',system-ui,sans-serif;font-weight:800;font-size:1rem;color:${op.color}">${op.name}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">${opQs.length} preguntas${opExams > 0 ? ` · <span style="color:var(--success-text)">${opExams} examen${opExams!==1?'es':''}</span>` : ''}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${opQs.length} preguntas` + examsChip + `</div>
         </div>
         <span style="font-size:1.2rem;color:var(--muted)">›</span>
-      </div>
-      ${opQs.length > 0 ? `<div class="stats-grid" style="margin:0;gap:6px">
-        <div class="stat-card" style="padding:8px 10px"><div class="stat-num" style="font-size:1.2rem">${opQs.length}</div><div class="stat-label">Total</div></div>
-        <div class="stat-card" style="padding:8px 10px"><div class="stat-num success" style="font-size:1.2rem">${opOk}</div><div class="stat-label">Sin fallar</div></div>
-        <div class="stat-card" style="padding:8px 10px"><div class="stat-num danger" style="font-size:1.2rem">${opFailed}</div><div class="stat-label">Falladas</div></div>
-        <div class="stat-card" style="padding:8px 10px"><div class="stat-num" style="font-size:1.2rem;color:var(--warning-text)">${opUnseen}</div><div class="stat-label">Sin ver</div></div>
-      </div>` : ''}
+      </div>` + statsHtml + `
     </div>`;
   }).join('');
 
@@ -1317,6 +1322,7 @@ function showOposicionesList() {
 
   document.getElementById('main-inner').innerHTML = bannerHtml + `
     <div class="home-hero"><h1>Estudio<span>Test</span></h1>${currentUser ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Bienvenido, <strong style="color:var(--text)">${escHtml(currentUser.name)}</strong></div>` : ''}</div>
+
     ${streak.count > 0 ? `<div style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-bottom:1rem">
       <span style="font-size:1.3rem">${streak.count >= 7 ? '🔥' : streak.count >= 3 ? '⚡' : '📅'}</span>
       <div><div style="font-size:13px;font-weight:700">${streak.count} día${streak.count!==1?'s':''} seguido${streak.count!==1?'s':''}</div>
