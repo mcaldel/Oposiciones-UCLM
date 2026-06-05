@@ -871,7 +871,7 @@ function listenSavedExams() {
   if (!window._fbDb || !window._fbFns || !window._fbUser) return;
   if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
 
-  // Sin orderBy para evitar índice compuesto — se ordena en cliente
+  // Sin orderBy para evitar índice compuesto en Firestore — se ordena en cliente
   const { collection, onSnapshot, query, where } = window._fbFns;
   const q = query(
     collection(window._fbDb, 'savedExams'),
@@ -904,7 +904,6 @@ function listenSavedExams() {
     }
   }, (error) => {
     console.warn('Error escuchando exámenes:', error);
-    // Fallback localStorage
     try {
       if (window._fbUser) {
         const local = localStorage.getItem('et_savedExams_' + window._fbUser.uid);
@@ -915,7 +914,7 @@ function listenSavedExams() {
 }
 
 async function saveExamToFirestore(exam) {
-  // Guardar en localStorage como respaldo inmediato
+  // Backup inmediato en localStorage
   try {
     if (window._fbUser) {
       const key = 'et_savedExams_' + window._fbUser.uid;
@@ -1987,7 +1986,7 @@ function processImportedQuestions(questions) {
     '<div style="padding:12px;background:var(--success-bg);border-radius:8px;color:var(--success-text)">✓ <strong>' +
     imported + ' pregunta' + (imported!==1?'s':'') + ' importada' + (imported!==1?'s':'') + '</strong>' +
     (skipped>0?' · '+skipped+' omitida'+(skipped!==1?'s':''):'') + '</div>' +
-    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo('home')">Ir al inicio</button>';
+    '<button class="btn-primary visible" style="margin-top:12px" onclick="navTo(\'home\')">Ir al inicio</button>';
 }
 
 /* ════════════════════════════════════════════════════════
