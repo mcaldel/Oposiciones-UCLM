@@ -871,11 +871,11 @@ function listenSavedExams() {
   if (!window._fbDb || !window._fbFns || !window._fbUser) return;
   if (_examsUnsubscribe) { _examsUnsubscribe(); _examsUnsubscribe = null; }
 
-  const { collection, onSnapshot, query, orderBy, where } = window._fbFns;
+  // Sin orderBy: evita necesitar índice compuesto en Firestore
+  const { collection, onSnapshot, query, where } = window._fbFns;
   const q = query(
     collection(window._fbDb, 'savedExams'),
-    where('userId', '==', window._fbUser.uid),
-    orderBy('createdAt', 'desc')
+    where('userId', '==', window._fbUser.uid)
   );
 
   _examsUnsubscribe = onSnapshot(q, (snapshot) => {
@@ -896,8 +896,10 @@ function listenSavedExams() {
         nota: data.nota
       });
     });
-    // Refresh oposicion home if open
-    if (currentNav === 'home') showHome();
+    // Ordenar por fecha desc en cliente (sin orderBy en Firestore)
+    savedExams.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Solo refrescar home si no hay resultados de examen visibles
+    if (currentNav === 'home' && !document.querySelector('.results-screen')) showHome();
   }, (error) => {
     console.warn('Error escuchando exámenes:', error);
   });
