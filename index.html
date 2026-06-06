@@ -2171,8 +2171,9 @@ function finishExam() {
     else wrong++;
   });
 
-  // Score: +0.2 correct, -0.05 wrong, max 10
-  const rawScore = correct * 0.2 - wrong * 0.05;
+  // Puntuación proporcional: escala según nº de preguntas (base 50, máx 10)
+  const factor = 50 / qs.length;
+  const rawScore = (correct * 0.2 - wrong * 0.05) * factor;
   const nota = Math.max(0, Math.min(10, rawScore));
   const notaStr = nota.toFixed(2);
   const pass = nota >= 5;
