@@ -1321,11 +1321,32 @@ function showOposicionesList() {
   document.getElementById('main-inner').innerHTML = bannerHtml + `
     <div class="home-hero"><h1>Estudio<span>Test</span></h1>${currentUser ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Bienvenido, <strong style="color:var(--text)">${escHtml(currentUser.name)}</strong></div>` : ''}</div>
 
-    ${streak.count > 0 ? `<div style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;margin-bottom:1rem">
-      <span style="font-size:1.3rem">${streak.count >= 7 ? '🔥' : streak.count >= 3 ? '⚡' : '📅'}</span>
-      <div><div style="font-size:13px;font-weight:700">${streak.count} día${streak.count!==1?'s':''} seguido${streak.count!==1?'s':''}</div>
-      <div style="font-size:11px;color:var(--muted)">Racha de estudio</div></div>
-    </div>` : ''}
+    ${(function(){
+      if (!streak.count && !((streak.days||[]).length)) return '';
+      const days = streak.days || [];
+      const today = new Date().toISOString().slice(0,10);
+      // Construir calendario últimos 35 días
+      let cal = '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:8px">';
+      for (let i = 34; i >= 0; i--) {
+        const d = new Date(Date.now() - i*86400000).toISOString().slice(0,10);
+        const active = days.includes(d);
+        const isToday = d === today;
+        cal += '<div title="' + d + '" style="width:14px;height:14px;border-radius:3px;background:'
+          + (active ? 'var(--success)' : 'var(--surface2)')
+          + ';border:1px solid ' + (isToday ? 'var(--accent)' : 'transparent')
+          + ';flex-shrink:0"></div>';
+      }
+      cal += '</div>';
+      const icon = streak.count >= 7 ? '🔥' : streak.count >= 3 ? '⚡' : '📅';
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:1rem">'
+        + '<div style="display:flex;align-items:center;gap:8px">'
+        + '<span style="font-size:1.3rem">' + icon + '</span>'
+        + '<div><div style="font-size:13px;font-weight:700">' + streak.count + ' día' + (streak.count!==1?'s':'') + ' seguido' + (streak.count!==1?'s':'') + '</div>'
+        + '<div style="font-size:11px;color:var(--muted)">Racha de estudio · últimos 35 días</div></div>'
+        + '</div>'
+        + cal
+        + '</div>';
+    })()}
     <div class="home-section-label">Oposiciones</div>
     <div style="display:flex;flex-direction:column;gap:10px">${opCardsHtml}${emptyHtml}</div>
   `;
@@ -1814,6 +1835,14 @@ async function updateStreak() {
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   streak.count = streak.lastDate === yesterday ? streak.count + 1 : 1;
   streak.lastDate = today;
+  // Guardar historial de días activos (últimos 90 días)
+  if (!streak.days) streak.days = [];
+  if (!streak.days.includes(today)) {
+    streak.days.push(today);
+    // Limpiar días muy antiguos (>90 días)
+    const cutoff = new Date(Date.now() - 90*86400000).toISOString().slice(0,10);
+    streak.days = streak.days.filter(d => d >= cutoff);
+  }
   saveData();
   await saveStreakToFirestore();
   if (streak.count > 1) showSaveToast('🔥 ¡' + streak.count + ' días seguidos estudiando!', 'ok');
@@ -1826,6 +1855,7 @@ async function saveStreakToFirestore() {
     await setDoc(doc(window._fbDb, 'streaks', window._fbUser.uid), {
       count: streak.count,
       lastDate: streak.lastDate,
+      days: streak.days || [],
       updatedAt: new Date().toISOString()
     });
   } catch(e) { console.warn('Error guardando racha:', e.message); }
@@ -1841,7 +1871,7 @@ async function loadStreakFromFirestore() {
       const fsDate = data.lastDate || null;
       const localDate = streak.lastDate || null;
       if (!localDate || (fsDate && fsDate >= localDate)) {
-        streak = { count: data.count || 0, lastDate: fsDate };
+        streak = { count: data.count || 0, lastDate: fsDate, days: data.days || [] };
         saveData();
       }
     }
@@ -2171,9 +2201,8 @@ function finishExam() {
     else wrong++;
   });
 
-  // Puntuación proporcional: escala según nº de preguntas (base 50, máx 10)
-  const factor = 50 / qs.length;
-  const rawScore = (correct * 0.2 - wrong * 0.05) * factor;
+  // Score: +0.2 correct, -0.05 wrong, max 10
+  const rawScore = correct * 0.2 - wrong * 0.05;
   const nota = Math.max(0, Math.min(10, rawScore));
   const notaStr = nota.toFixed(2);
   const pass = nota >= 5;
@@ -2290,6 +2319,10 @@ function showExamReview(examId) {
       </div>
     </div>
     ${questionsHtml}
+    <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-primary visible" onclick="showExamResults('${examId}')">← Volver al resultado</button>
+      <button class="btn-sec" onclick="navTo('home')">🏠 Inicio</button>
+    </div>
   `;
 }
 
